@@ -550,7 +550,12 @@
   function edCode() { return compose(ED.sel.map(b => ({ base: b, f: ED.fest }))); }
   function closeEditor() { PAT = null; MP = null; closeSheet(); }
   function closeSheet() { $('#sheet').classList.remove('on'); $('#scrim').classList.remove('on'); ED = null; if (S.reloadPending) setTimeout(S.reloadPending, 300); }
+  // Guardar siempre cierra la ventana; si algo falla, se avisa en vez de quedarse abierta
   function saveEditor() {
+    try { saveEditorInner(); } catch (err) { toast('No se ha podido guardar: ' + (err && err.message || err)); }
+    finally { closeEditor(); }
+  }
+  function saveEditorInner() {
     ED.n = $('#ed-n').value.trim(); ED.c = $('#ed-c').value.trim(); ED.pm = $('#ed-pm').value.trim();
     const amt = parseFloat(($('#ed-eu').value || '').replace(',', '.'));
     const sign = $('[data-eus="-1"]').getAttribute('aria-pressed') === 'true' ? -1 : 1;
