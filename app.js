@@ -221,6 +221,8 @@
       yearHtml += `<p style="margin:6px 0 0"><b>${fmtH(st.hoursToDate)} h</b> trabajadas en el SAS hasta hoy · ${fmtH(st.hours)} h con lo ya planificado.</p>
         <p class="muted" style="margin:6px 0 0;font-size:.88rem">Pon tu jornada anual en Ajustes para ver si vas por encima o por debajo.</p>`;
     }
+    const hF = num(cfg().horas_fibao);
+    if (st.fbToDate) yearHtml += `<p style="margin:10px 0 0;padding-top:10px;border-top:1px solid var(--line)"><b style="color:var(--fibao)">Fibao:</b> ${st.fbToDate} ${st.fbToDate === 1 ? 'mañana' : 'mañanas'}${hF ? ' · ' + fmtH(st.fbToDate * hF) + ' h' : ''} hasta hoy, aparte del SAS.</p>`;
     $('#hoy-year').innerHTML = yearHtml + '</div>';
 
     // cambios por negociar
@@ -238,7 +240,7 @@
 
   /* ───────── estadísticas ───────── */
   function stats(year) {
-    const out = { hours: 0, hoursOrig: 0, hoursToDate: 0, M: 0, T: 0, N: 0, fest: 0, dom: 0, sab: 0, fb: 0, V: 0, comp: {}, IL: 0, cambios: 0, months: Array.from({ length: 12 }, () => ({ r: 0, o: 0 })), any: false };
+    const out = { hours: 0, hoursOrig: 0, hoursToDate: 0, M: 0, T: 0, N: 0, fest: 0, dom: 0, sab: 0, fb: 0, fbToDate: 0, V: 0, comp: {}, IL: 0, cambios: 0, months: Array.from({ length: 12 }, () => ({ r: 0, o: 0 })), any: false };
     const today = iso(new Date());
     for (let dt = new Date(year, 0, 1); dt.getFullYear() === year; dt = addDays(dt, 1)) {
       const f = iso(dt), d = MAP[f];
@@ -258,7 +260,7 @@
       });
       if (dt.getDay() === 0 && worked(c)) out.dom++;
       if (dt.getDay() === 6 && worked(c)) out.sab++;
-      if (d.fb) out.fb++;
+      if (d.fb) { out.fb++; if (f <= today) out.fbToDate++; }
       if (o && c !== o) out.cambios++;
     }
     return out;
@@ -565,14 +567,21 @@
       html += `<div class="meter"><b style="width:${Math.min(100, st.hours / jor * 100)}%"></b></div><div style="font-size:.9rem">Jornada anual ${fmtH(jor)} h · <b class="${dif >= 0 ? 'pos' : 'neg'}">${dif >= 0 ? 'te sobran ' : 'te faltan '}${fmtH(Math.abs(dif))} h</b></div>`;
     }
     html += '</div>';
+    // Fibao es un segundo trabajo: sus horas van aparte y no cuentan para la jornada del SAS
+    if (st.fb) {
+      html += `<div class="card" style="margin-top:10px;border-left:4px solid var(--fibao)"><div class="muted">Horas en Fibao · segundo trabajo, no cuentan en la jornada del SAS</div>` +
+        (hFb ? `<div class="big" style="color:var(--fibao)">${fmtH(st.fb * hFb)} h</div><div style="margin-top:6px;color:var(--ink-2)">${st.fb} ${st.fb === 1 ? 'mañana' : 'mañanas'} × ${fmtH(hFb)} h</div>
+          <div class="tot"><span>Total trabajado (SAS + Fibao)</span><b>${fmtH(st.hours + st.fb * hFb)} h</b></div>`
+          : `<div class="big" style="color:var(--fibao)">${st.fb} ${st.fb === 1 ? 'mañana' : 'mañanas'}</div><p class="muted" style="margin:6px 0 0;font-size:.88rem">Pon en Ajustes las horas de una mañana en Fibao para ver las horas y el total.</p>`) + '</div>';
+    }
     const s = (v, k, c) => `<div class="stat" style="--c:${c}"><div class="v">${v}</div><div class="k">${k}</div></div>`;
     const compTxt = Object.keys(st.comp).map(k => k + ' ' + st.comp[k]).join(' · ') || 'ninguna';
     html += `<div class="statgrid">${s(st.M, 'mañanas', 'var(--m)')}${s(st.T, 'tardes', 'var(--t)')}${s(st.N, 'noches', 'var(--n)')}
-      ${s(st.fest, 'turnos en festivo', 'var(--fest)')}${s(st.dom, 'domingos trabajados', 'var(--fest)')}${s(st.fb, 'mañanas en Fibao' + (hFb ? ' · ' + fmtH(st.fb * hFb) + ' h' : ''), 'var(--fibao)')}
+      ${s(st.fest, 'turnos en festivo', 'var(--fest)')}${s(st.dom, 'domingos trabajados', 'var(--fest)')}${s(st.fb, 'mañanas en Fibao', 'var(--fibao)')}
       ${s(st.V + (vac ? '<small style="font-size:.9rem;color:var(--ink-3)"> / ' + vac + '</small>' : ''), 'días de vacaciones', 'var(--v)')}${s(Object.values(st.comp).reduce((a, b) => a + b, 0), 'compensaciones', 'var(--comp)')}${s(st.cambios, 'días cambiados', 'var(--ink-3)')}</div>
       <p class="muted" style="font-size:.85rem;margin:8px 2px 0">Compensaciones: ${esc(compTxt)}${st.IL ? ' · IL ' + st.IL + ' días' : ''}</p>`;
     html += `<div class="section"><h3>Horas por mes</h3><div class="card chart">${monthChart(st)}<div class="keyline"><span><i style="background:var(--ink)"></i>Real</span><span><i style="background:var(--line);outline:1px solid var(--ink-3)"></i>Cuadrante</span></div></div></div>`;
-    html += `<div class="section"><h3>Año a año</h3><div class="card chart">${yearsChart(y)}</div></div>`;
+    html += `<div class="section"><h3>Horas en el SAS, año a año</h3><div class="card chart">${yearsChart(y)}</div></div>`;
     html += `<div class="section"><h3>Turnos por año</h3><div class="card chart">${turnosChart(y)}</div></div>`;
     $('#res-body').innerHTML = html;
   }
@@ -601,13 +610,14 @@
       '</div>').join('') + '</div>';
   }
   function yearsChart(sel) {
+    const hFbY = num(cfg().horas_fibao);
     const rows = years().map(y => ({ y, s: stats(y) })).filter(r => r.s.any);
     const max = Math.max(1, ...rows.map(r => r.s.hours));
     return '<div class="yrs">' + rows.map(r => `<div class="yr${r.y === sel ? ' sel' : ''}">
       <span class="yl">${r.y}</span>
       <span class="yb"><i style="width:${Math.max(2, r.s.hours / max * 100)}%"></i></span>
       <span class="yh">${fmtH(r.s.hours)} h</span>
-      <span class="ym">${r.s.N} ${r.s.N === 1 ? 'noche' : 'noches'} · ${r.s.fest} ${r.s.fest === 1 ? 'festivo' : 'festivos'} · ${r.s.fb} Fibao</span></div>`).join('') + '</div>';
+      <span class="ym">${r.s.N} ${r.s.N === 1 ? 'noche' : 'noches'} · ${r.s.fest} ${r.s.fest === 1 ? 'festivo' : 'festivos'} · ${r.s.fb} Fibao${hFbY ? ' (' + fmtH(r.s.fb * hFbY) + ' h)' : ''}</span></div>`).join('') + '</div>';
   }
 
   /* ───────── Cambios ───────── */
