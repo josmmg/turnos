@@ -60,6 +60,7 @@
   // «La casa»: el hospital o la supervisora, para cambios impuestos y formaciones
   const CASA = 'La casa';
   const isCasa = (c) => String(c || '').trim().toLowerCase() === 'la casa';
+  const ICON_CASA = '<svg class="ic-casa" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V8l8-5 8 5v13z"/><path d="M12 8v6M9 11h6" stroke-linecap="round"/><path d="M10 21v-4h4v4"/></svg>';
   const hoursOf = (code) => parts(code).reduce((s, p) => s + (Number(info(p.base).horas) || 0), 0);
   const worked = (code) => parts(code).some(p => isWorkBase(p.base));
   const shortName = (b) => ({ M: 'Mañana', T: 'Tarde', N: 'Noche', D: 'Libre', V: 'Vacaciones' }[b] || info(b).nombre);
@@ -484,7 +485,7 @@
       <div class="row-toggle"><label for="ed-pd">Necesito cambiar este día<small>Lo apunta en «Por negociar», en la pantalla Cambios</small></label><input type="checkbox" class="switch pd" id="ed-pd" ${ED.pd ? 'checked' : ''}></div>
       <label class="field" id="ed-pm-wrap" ${ED.pd ? '' : 'hidden'}><span>Para qué lo necesitas</span><input id="ed-pm" value="${esc(ED.pm)}" placeholder="Ej.: viaje, boda, médico…" autocomplete="off"></label>
       <label class="field"><span>Cambio con</span><input id="ed-c" list="ed-names" value="${esc(ED.c)}" placeholder="Nombre de la compañera" autocomplete="off"><datalist id="ed-names">${names.map(n => `<option value="${esc(n)}">`).join('')}</datalist></label>
-      <div class="quick"><button type="button" data-quickc="${CASA}">La casa</button><small>Para cambios impuestos por la supervisora o por una formación</small></div>
+      <div class="quick"><button type="button" data-quickc="${CASA}">${ICON_CASA}La casa</button><small>Para cambios impuestos por la supervisora o por una formación</small></div>
       <div class="field"><span>Cómo se compensa</span><div class="seg wide" role="group" aria-label="Cómo se compensa">
         <button type="button" data-mode="nada" aria-pressed="${ED.mode === 'nada'}">Pendiente</button><button type="button" data-mode="dia" aria-pressed="${ED.mode === 'dia'}">Otro día</button><button type="button" data-mode="dinero" aria-pressed="${ED.mode === 'dinero'}">Dinero</button></div><small class="mode-help" id="ed-mode-help">${MODE_HELP[ED.mode]}</small></div>
       <div id="ed-mode-dia" ${ED.mode === 'dia' ? '' : 'hidden'}>
@@ -548,7 +549,7 @@
   }
   function edCode() { return compose(ED.sel.map(b => ({ base: b, f: ED.fest }))); }
   function closeEditor() { PAT = null; MP = null; closeSheet(); }
-  function closeSheet() { $('#sheet').classList.remove('on'); $('#scrim').classList.remove('on'); ED = null; }
+  function closeSheet() { $('#sheet').classList.remove('on'); $('#scrim').classList.remove('on'); ED = null; if (S.reloadPending) setTimeout(S.reloadPending, 300); }
   function saveEditor() {
     ED.n = $('#ed-n').value.trim(); ED.c = $('#ed-c').value.trim(); ED.pm = $('#ed-pm').value.trim();
     const amt = parseFloat(($('#ed-eu').value || '').replace(',', '.'));
@@ -702,7 +703,7 @@
     const sinNombre = list.filter(x => !x.d.c).length;
     html += '<div class="section"><h3>Saldo por compañera</h3><div class="card">';
     const names = Object.keys(saldo).sort((a, b) => (isCasa(b) - isCasa(a)) || Math.abs(saldo[b]) - Math.abs(saldo[a]));
-    html += names.length ? names.map(n => `<div class="saldo${isCasa(n) ? ' casa' : ''}"><span class="who">${esc(n)}${isCasa(n) ? '<small>hospital · supervisión · formación</small>' : ''}</span><span style="text-align:right"><span class="h ${saldo[n] > 0 ? 'pos' : saldo[n] < 0 ? 'neg' : ''}">${saldo[n] === 0 ? 'horas en paz' : (saldo[n] > 0 ? 'te debe ' : 'le debes ') + fmtH(Math.abs(saldo[n])) + ' h'}</span>${euros[n] ? `<br><span class="${euros[n] > 0 ? 'pos' : 'neg'}" style="font-size:.88rem">${euros[n] > 0 ? 'le has cobrado ' : 'le has pagado '}${fmtE(Math.abs(euros[n]))}</span>` : ''}</span></div>`).join('')
+    html += names.length ? names.map(n => `<div class="saldo${isCasa(n) ? ' casa' : ''}"><span class="who">${isCasa(n) ? ICON_CASA : ''}${esc(n)}${isCasa(n) ? '<small>hospital · supervisión · formación</small>' : ''}</span><span style="text-align:right"><span class="h ${saldo[n] > 0 ? 'pos' : saldo[n] < 0 ? 'neg' : ''}">${saldo[n] === 0 ? 'horas en paz' : (saldo[n] > 0 ? 'te debe ' : 'le debes ') + fmtH(Math.abs(saldo[n])) + ' h'}</span>${euros[n] ? `<br><span class="${euros[n] > 0 ? 'pos' : 'neg'}" style="font-size:.88rem">${euros[n] > 0 ? 'le has cobrado ' : 'le has pagado '}${fmtE(Math.abs(euros[n]))}</span>` : ''}</span></div>`).join('')
       : '<p class="muted" style="margin:0">Pon con quién hiciste cada cambio y aquí verás quién debe horas a quién.</p>';
     html += '</div></div>';
     if (sinNombre) html += `<p class="muted" style="font-size:.88rem;margin:8px 2px 0">${sinNombre} ${sinNombre === 1 ? 'cambio sin nombre' : 'cambios sin nombre'}. Tócalos para añadir con quién fue.</p>`;
@@ -1009,7 +1010,19 @@
   }
 
   /* ───────── arranque ───────── */
-  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  // Actualizaciones: cuando hay versión nueva, el service worker la descarga entera y la app se recarga sola
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloading) return;
+      const go = () => { if (!reloading) { reloading = true; location.reload(); } };
+      if ($('#sheet').classList.contains('on')) S.reloadPending = go; else go();
+    });
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+    }).catch(() => {});
+  }
   // enlace de configuración: …/#k=CLAVE
   const hk = new URLSearchParams(location.hash.slice(1)).get('k');
   if (hk) { $('#gate-key').value = hk; history.replaceState(null, '', location.pathname); }
