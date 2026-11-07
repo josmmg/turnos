@@ -17,17 +17,17 @@
 <style>
 :root{
   --bg:#F2F4F7; --surface:#FFFFFF; --ink:#18202B; --ink-2:#4A5565; --ink-3:#8590A0; --line:#E2E6EC;
-  --m:#1A9FB4; --t:#2F9E44; --n:#6B3FC0; --d:#E39B1B; --v:#3B82D9; --comp:#D9B310; --il:#D9667A; --fibao:#B5462B; --fest:#C2255C;
+  --m:#1A9FB4; --t:#2F9E44; --n:#6B3FC0; --d:#E39B1B; --v:#3B82D9; --comp:#D9B310; --il:#D9667A; --fibao:#B5462B; --fest:#C2255C; --today:#E3E7ED;
   --radius-lg:22px; --radius:14px; --radius-sm:9px;
   --display:'Bricolage Grotesque', system-ui, sans-serif; --body:'Atkinson Hyperlegible', system-ui, sans-serif;
   --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){ --bg:#0F141B; --surface:#18202B; --ink:#EEF1F5; --ink-2:#B4BCC8; --ink-3:#7C8696; --line:#273140;
-    --m:#3CC0D4; --t:#4CC266; --n:#9C7BEA; --d:#F0B33E; --v:#5C9EEB; --comp:#E8C83A; --il:#E8899A; --fibao:#D46A4C; --fest:#F06595; color-scheme:dark; }
+    --m:#3CC0D4; --t:#4CC266; --n:#9C7BEA; --d:#F0B33E; --v:#5C9EEB; --comp:#E8C83A; --il:#E8899A; --fibao:#D46A4C; --fest:#F06595; --today:#2A3442; color-scheme:dark; }
 }
 :root[data-theme="dark"]{ --bg:#0F141B; --surface:#18202B; --ink:#EEF1F5; --ink-2:#B4BCC8; --ink-3:#7C8696; --line:#273140;
-    --m:#3CC0D4; --t:#4CC266; --n:#9C7BEA; --d:#F0B33E; --v:#5C9EEB; --comp:#E8C83A; --il:#E8899A; --fibao:#D46A4C; --fest:#F06595; color-scheme:dark; }
+    --m:#3CC0D4; --t:#4CC266; --n:#9C7BEA; --d:#F0B33E; --v:#5C9EEB; --comp:#E8C83A; --il:#E8899A; --fibao:#D46A4C; --fest:#F06595; --today:#2A3442; color-scheme:dark; }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
 html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased;overscroll-behavior-y:none}
@@ -107,7 +107,7 @@ h3{font-size:1.06rem;font-weight:700}
 .cell.out{visibility:hidden}
 .cell .n{font-size:.82rem;font-weight:700;color:var(--ink-2)}
 .cell.fest .n{color:var(--fest)}
-.cell.today{border:2px solid var(--ink)}
+.cell.today{border:2px solid var(--ink);background:var(--today)}
 .cell .c{width:100%;border-radius:7px;color:#fff;font-weight:700;font-size:.78rem;text-align:center;padding:4px 0;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:clip}
 .cell .c.empty{background:transparent;color:var(--ink-3)}
 .cell.fbday{border-color:var(--fibao);box-shadow:inset 0 0 0 2px var(--fibao)}

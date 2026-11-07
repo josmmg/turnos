@@ -289,6 +289,7 @@
     const leg = [...used].filter(b => CODES[b]).map(b => `<span><i style="background:${info(b).color}"></i>${esc(b)} ${esc(info(b).nombre)}</span>`);
     leg.push('<span><i style="background:transparent;box-shadow:inset 0 0 0 2px var(--fibao)"></i>Fibao</span>');
     leg.push('<span><i class="leg-pend"></i>Por cambiar</span>');
+    leg.push('<span><b style="color:var(--fest);font-size:.9rem">★</b>Fecha a tener en cuenta</span>');
     if (S.layer === 'real') leg.push('<span><s class="muted" style="font-size:.78rem">M</s>Ya cambiado: tachado, lo que ponía el cuadrante</span>');
     $('#legend').innerHTML = leg.join('');
     // pincel
