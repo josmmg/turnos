@@ -247,7 +247,7 @@
 
   /* ───────── estadísticas ───────── */
   function stats(year) {
-    const out = { hours: 0, hoursOrig: 0, hoursToDate: 0, M: 0, T: 0, N: 0, fest: 0, dom: 0, sab: 0, fb: 0, fbToDate: 0, V: 0, comp: {}, IL: 0, cambios: 0, months: Array.from({ length: 12 }, () => ({ r: 0, o: 0 })), any: false };
+    const out = { hours: 0, hoursOrig: 0, hoursToDate: 0, M: 0, T: 0, N: 0, fest: 0, dom: 0, sab: 0, fb: 0, fbToDate: 0, por: { cob: [0, 0], pag: [0, 0], dia: [0, 0], casa: [0, 0], pend: [0, 0], sin: [0, 0] }, V: 0, comp: {}, IL: 0, cambios: 0, months: Array.from({ length: 12 }, () => ({ r: 0, o: 0 })), any: false };
     const today = iso(new Date());
     for (let dt = new Date(year, 0, 1); dt.getFullYear() === year; dt = addDays(dt, 1)) {
       const f = iso(dt), d = MAP[f];
@@ -269,6 +269,14 @@
       if (dt.getDay() === 6 && worked(c)) out.sab++;
       if (d.fb) { out.fb++; if (f <= today) out.fbToDate++; }
       if (o && c !== o) out.cambios++;
+      // de dónde sale la diferencia con el cuadrante: [horas, número de cambios] por tipo de compensación
+      if ((o && c !== o) || d.eu) {
+        const dh = o ? hoursOf(c) - hoursOf(o) : 0;
+        const k = d.eu > 0 ? 'cob' : d.eu < 0 ? 'pag' : d.sw ? 'dia' : isCasa(d.c) ? 'casa' : d.c ? 'pend' : 'sin';
+        out.por[k][0] += dh; out.por[k][1]++;
+      }
+      if (d.eu > 0) out.cobrado = (out.cobrado || 0) + d.eu;
+      if (d.eu < 0) out.pagado = (out.pagado || 0) - d.eu;
     }
     return out;
   }
@@ -597,6 +605,25 @@
     }
     if (st.IL) html += `<div class="tot"><span>Días de baja (IL)</span><b>${st.IL} ${st.IL === 1 ? 'día' : 'días'}</b></div>`;
     html += '</div>';
+    // Desglose de la diferencia con el cuadrante y dinero de los cambios
+    const P = st.por, sh = (h) => (h > 0 ? '+' : h < 0 ? '−' : '') + fmtH(Math.abs(h)) + ' h';
+    const rows = [
+      ['cob', 'Cambios cobrados'], ['pag', 'Cambios pagados'], ['dia', 'Intercambios por otro día'],
+      ['casa', 'Con la casa'], ['pend', 'Pendientes con compañeras'], ['sin', 'Sin anotar con quién']
+    ].filter(([k]) => P[k][1]);
+    if (rows.length) {
+      html += `<div class="card" style="margin-top:10px"><h3>De dónde sale la diferencia</h3><div class="desg">` + rows.map(([k, n]) =>
+        `<div class="dr"><span>${n}<small>${P[k][1]} ${P[k][1] === 1 ? 'cambio' : 'cambios'}${k === 'cob' ? ' · ' + fmtE(st.cobrado || 0) : k === 'pag' ? ' · ' + fmtE(st.pagado || 0) : ''}</small></span><b class="${P[k][0] > 0 ? 'pos' : P[k][0] < 0 ? 'neg' : 'muted'}">${sh(P[k][0])}</b></div>`).join('') +
+        `<div class="dr tot2"><span>Diferencia con el cuadrante</span><b>${sh(st.hours - st.hoursOrig)}</b></div></div>`;
+      if (st.cobrado || st.pagado) {
+        const bal = (st.cobrado || 0) - (st.pagado || 0);
+        html += `<div class="money-card" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
+          <div><div class="k">Cobrado</div><div class="v pos">${fmtE(st.cobrado || 0)}</div></div>
+          <div><div class="k">Pagado</div><div class="v neg">${fmtE(st.pagado || 0)}</div></div>
+          <div><div class="k">Balance</div><div class="v ${bal >= 0 ? 'pos' : 'neg'}">${bal >= 0 ? '+' : '−'}${fmtE(Math.abs(bal))}</div></div></div>`;
+      }
+      html += '</div>';
+    }
     // Fibao es un segundo trabajo: sus horas van aparte y no cuentan para la jornada del SAS
     if (st.fb) {
       html += `<div class="card" style="margin-top:10px;border-left:4px solid var(--fibao)"><div class="muted">Horas en Fibao · segundo trabajo, no cuentan en la jornada del SAS</div>` +
