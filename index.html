@@ -29,6 +29,7 @@
 :root[data-theme="dark"]{ --bg:#0F141B; --surface:#18202B; --ink:#EEF1F5; --ink-2:#B4BCC8; --ink-3:#7C8696; --line:#273140;
     --m:#3CC0D4; --t:#4CC266; --n:#9C7BEA; --d:#F0B33E; --v:#5C9EEB; --comp:#E8C83A; --il:#E8899A; --fibao:#D46A4C; --fest:#F06595; color-scheme:dark; }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
 html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased;overscroll-behavior-y:none}
 button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
 input,textarea{font:inherit;color:inherit}
@@ -242,6 +243,8 @@ h3{font-size:1.06rem;font-weight:700}
 .seg.wide{display:flex;width:100%}
 .seg.wide button{flex:1}
 .chg .frase{font-size:.88rem;color:var(--ink);font-style:italic}
+.chg .who.add{font-style:normal;font-weight:700;color:var(--v);text-decoration:underline;text-underline-offset:3px}
+.field input.ask{border-color:var(--v);box-shadow:0 0 0 3px color-mix(in srgb,var(--v) 30%,transparent)}
 .chg .who.none{color:var(--ink-3);font-style:italic}
 
 /* ajustes */

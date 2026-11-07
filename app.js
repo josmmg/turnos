@@ -360,7 +360,13 @@
       <div class="actions"><button class="btn danger" id="ed-clear">Vaciar</button><button class="btn ghost" id="ed-back">Volver</button><button class="btn" id="ed-save">Guardar</button></div>`;
     drawCodes(); drawSwap();
     sh.classList.add('on'); $('#scrim').classList.add('on');
-    setTimeout(() => (focus === 'c' ? $('#ed-c') : $('#ed-save')).focus({ preventScroll: true }), 260);
+    setTimeout(() => {
+      if (focus === 'c') {
+        // viene de «Añadir con quién»: lleva la ventana hasta el campo y lo resalta
+        const c = $('#ed-c'); c.scrollIntoView({ behavior: 'smooth', block: 'center' }); c.focus({ preventScroll: true });
+        c.classList.add('ask'); setTimeout(() => c.classList.remove('ask'), 1600);
+      } else $('#ed-save').focus({ preventScroll: true });
+    }, 280);
   }
   function drawCodes() {
     $('#ed-codes').innerHTML = Object.keys(CODES).map(b => {
@@ -539,7 +545,7 @@
     html += `<div class="section"><h3>${list.length} ${list.length === 1 ? 'cambio hecho' : 'cambios hechos'}</h3><div class="card" style="padding:4px 16px">` + list.slice().reverse().map(x => `
       <button class="chg" id="chg-${x.f}" data-edit="${x.f}" data-focus="c"><span class="dt">${x.dt.getDate()} ${MESES_C[x.dt.getMonth()]}<small>${DIAS[x.dt.getDay()]}</small></span>
       <span class="chg-txt"><span class="pills">${pill(x.d.o)}<span class="muted">→</span>${pill(real(x.d))}</span>
-      ${x.d.c ? `<span class="frase">${esc(frase(x.d) || 'Con ' + x.d.c)}</span>` : '<span class="who none">Añadir con quién</span>'}
+      ${x.d.c ? `<span class="frase">${esc(frase(x.d) || 'Con ' + x.d.c)}</span>` : '<span class="who none add">+ Añadir con quién</span>'}
       ${x.d.sw ? (() => { const p = day(x.d.sw), pd = parseISO(x.d.sw); return `<span class="sw-line" data-goto="${x.d.sw}" role="link" tabindex="0" aria-label="Ir al cambio del ${pd.getDate()} de ${MESES[pd.getMonth()]}"><span class="golink">a cambio del ${pd.getDate()} ${MESES_C[pd.getMonth()]}</span><span class="pills">${pill(p.o)}<span class="muted">→</span>${pill(real(p))}</span></span>`; })() : ''}</span>
       ${x.d.eu ? `<span class="price ${x.d.eu > 0 ? 'pos' : 'neg'}">${fmtE(Math.abs(x.d.eu))}<small>${x.d.eu > 0 ? 'cobrado' : 'pagado'}</small></span>`
         : `<span class="${x.delta > 0 ? 'pos' : x.delta < 0 ? 'neg' : 'muted'}" style="font-weight:700">${x.delta === 0 ? '=' : (x.delta > 0 ? '+' : '−') + fmtH(Math.abs(x.delta)) + ' h'}</span>`}</button>`).join('') + '</div></div>';
