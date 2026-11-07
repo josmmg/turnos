@@ -478,11 +478,11 @@
     ED = { f, layer, sel: parts(codeIn(d, layer)).map(p => p.base), fest: parts(codeIn(d, layer)).some(p => p.f) || (!codeIn(d, layer) && isSunOrFest(f)), fb: !!d.fb, im: !!d.im, n: d.n || '', c: d.c || '', pd: !!d.pd, pm: d.pm || '', eu: d.eu || 0, sw: d.sw || '', mode: d.sw ? 'dia' : d.eu ? 'dinero' : 'nada' };
     const names = [...new Set(Object.values(MAP).map(x => x.c).filter(Boolean))].sort();
     const sh = $('#sheet');
-    sh.innerHTML = `<div class="grab"></div>
+    sh.innerHTML = `<div class="ed-head"><div class="grab"></div>
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
-        <div><h2 id="ed-title">${fechaLarga(dt)}</h2><div class="muted">${FEST[f] ? esc(FEST[f]) + ' · ' : ''}${d.o ? 'Cuadrante: ' + esc(d.o) : 'Sin cuadrante'}</div></div>
+        <div><h2 id="ed-title">${fechaLarga(dt)} ${dt.getFullYear()}</h2><div class="muted">${FEST[f] ? esc(FEST[f]) + ' · ' : ''}${d.o ? 'Cuadrante: ' + esc(d.o) : 'Sin cuadrante'}</div></div>
         <div class="seg" role="group" aria-label="Qué guardar"><button data-ly="real" aria-pressed="${layer === 'real'}">Real</button><button data-ly="orig" aria-pressed="${layer === 'orig'}">Cuadrante</button></div>
-      </div>
+      </div></div>
       <div class="codes" id="ed-codes"></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span class="preview" id="ed-prev"></span><span class="muted" id="ed-hours"></span></div>
       <div class="row-toggle"><label for="ed-fest">Festivo<small>Añade la F a los turnos trabajados</small></label><input type="checkbox" class="switch" id="ed-fest" ${ED.fest ? 'checked' : ''}></div>
