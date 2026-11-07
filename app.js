@@ -316,6 +316,22 @@
     if (code && isWorkBase(code) && isSunOrFest(f)) code += 'F';
     setLayer(f, S.layer, code);
   }
+  /* ───────── elegir mes y año ───────── */
+  let MP = null;
+  function openMonthPicker() {
+    PAT = null; ED = null;
+    MP = { y: S.month.getFullYear() };
+    $('#sheet').innerHTML = '<div class="grab"></div><h2>Ir a un mes</h2><div id="mp"></div><div class="actions"><button type="button" class="btn ghost" id="mp-today">Hoy</button><button type="button" class="btn ghost" id="ed-back">Volver</button></div>';
+    drawMonthPicker();
+    $('#sheet').classList.add('on'); $('#scrim').classList.add('on');
+  }
+  function drawMonthPicker() {
+    const ys = years(), min = ys[0], max = Math.max(ys[ys.length - 1], new Date().getFullYear() + 1);
+    const now = new Date();
+    $('#mp').innerHTML = `<div class="mp-year"><button type="button" class="icon-btn" data-mpy="-1" aria-label="Año anterior" ${MP.y <= min ? 'disabled' : ''}>‹</button><b>${MP.y}</b><button type="button" class="icon-btn" data-mpy="1" aria-label="Año siguiente" ${MP.y >= max ? 'disabled' : ''}>›</button></div>
+      <div class="mp-grid">${MESES.map((m, i) => `<button type="button" data-mpm="${i}" aria-current="${MP.y === S.month.getFullYear() && i === S.month.getMonth()}" class="${MP.y === now.getFullYear() && i === now.getMonth() ? 'now' : ''}">${cap(m)}</button>`).join('')}</div>`;
+  }
+
   /* ───────── relleno del cuadrante con un patrón ───────── */
   const baseCode = (c) => parts(c).map(p => p.base).join('-');
   const daysBetween = (a, b) => Math.round((Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / 864e5);
@@ -524,7 +540,7 @@
       <div class="muted" style="font-size:.85rem">Al guardar se actualizan los dos días en el calendario real.</div>`;
   }
   function edCode() { return compose(ED.sel.map(b => ({ base: b, f: ED.fest }))); }
-  function closeEditor() { PAT = null; closeSheet(); }
+  function closeEditor() { PAT = null; MP = null; closeSheet(); }
   function closeSheet() { $('#sheet').classList.remove('on'); $('#scrim').classList.remove('on'); ED = null; }
   function saveEditor() {
     ED.n = $('#ed-n').value.trim(); ED.c = $('#ed-c').value.trim(); ED.pm = $('#ed-pm').value.trim();
@@ -846,6 +862,10 @@
     if (PAT && t.id === 'pat-clear') { PAT.codes = []; PAT.shift = 0; drawPattern(); return; }
     if (PAT && t.id === 'pat-apply') { applyPattern(); return; }
     if (t.id === 'brush-pat') { openPattern(); return; }
+    if (t.id === 'cal-pick') { openMonthPicker(); return; }
+    if (MP && t.dataset.mpy) { MP.y += Number(t.dataset.mpy); drawMonthPicker(); return; }
+    if (MP && t.dataset.mpm !== undefined) { S.month = new Date(MP.y, Number(t.dataset.mpm), 1); MP = null; closeEditor(); renderCal(); return; }
+    if (MP && t.id === 'mp-today') { const n = new Date(); S.month = new Date(n.getFullYear(), n.getMonth(), 1); MP = null; closeEditor(); renderCal(); return; }
     if (t.dataset.mode && ED) {
       ED.mode = t.dataset.mode;
       document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === ED.mode));

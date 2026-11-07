@@ -132,6 +132,14 @@ h3{font-size:1.06rem;font-weight:700}
 .leg-pend{background:repeating-linear-gradient(135deg,var(--d) 0 3px,color-mix(in srgb,var(--d) 35%,transparent) 3px 6px)!important}
 .tot{display:flex;justify-content:space-between;align-items:baseline;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);color:var(--ink-2)}
 .tot b{font-family:var(--display);font-size:1.25rem;color:var(--ink)}
+.title-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:12px;color:var(--ink)}
+.title-btn:active{background:var(--line)}
+.mp-year{display:flex;align-items:center;justify-content:space-between;margin:12px 0}
+.mp-year b{font-family:var(--display);font-size:1.6rem}
+.mp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.mp-grid button{min-height:52px;border-radius:12px;border:1px solid var(--line);background:var(--bg);font-weight:700}
+.mp-grid button[aria-current="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.mp-grid button.now{box-shadow:inset 0 0 0 2px var(--ink)}
 .mode-help{display:block;margin-top:6px;font-size:.82rem;color:var(--ink-3)}
 .pat-seq{display:flex;flex-wrap:wrap;gap:6px;min-height:36px;align-items:center;padding:8px;border:1px dashed var(--line);border-radius:12px}
 .pat-arrows{display:inline-flex;gap:4px;flex:0 0 auto}
@@ -321,7 +329,7 @@ h3{font-size:1.06rem;font-weight:700}
   <section class="screen" id="s-cal" aria-label="Calendario">
     <div class="cal-head">
       <button class="icon-btn" id="cal-prev" aria-label="Mes anterior"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button>
-      <h2 id="cal-title">Mes</h2>
+      <button type="button" class="title-btn" id="cal-pick" aria-label="Elegir mes y año"><h2 id="cal-title">Mes</h2><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
       <button class="icon-btn" id="cal-next" aria-label="Mes siguiente"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg></button>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px">
