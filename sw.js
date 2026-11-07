@@ -1,6 +1,6 @@
 // Guarda la app para que abra sin conexión y se actualice de una pieza.
 // IMPORTANTE: cambiar VERSION en cada publicación para que los iPhone descarguen la versión nueva.
-const VERSION = 'turnos-v6';
+const VERSION = 'turnos-v7';
 const SHELL = ['./', 'index.html', 'app.js', 'config.js', 'manifest.webmanifest', 'icons/apple-touch-icon.png', 'icons/icon-192.png'];
 self.addEventListener('install', e => {
   // descarga todos los archivos frescos a la vez, para no mezclar versiones

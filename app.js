@@ -475,7 +475,7 @@
   function openEditor(f, focus) {
     const d = day(f), dt = parseISO(f);
     const layer = S.view === 'cal' ? S.layer : 'real';
-    ED = { f, layer, sel: parts(codeIn(d, layer)).map(p => p.base), fest: parts(codeIn(d, layer)).some(p => p.f) || (!codeIn(d, layer) && isSunOrFest(f)), fb: !!d.fb, im: !!d.im, n: d.n || '', c: d.c || '', pd: !!d.pd, pm: d.pm || '', eu: d.eu || 0, sw: d.sw || '', mode: d.sw ? 'dia' : d.eu ? 'dinero' : 'nada' };
+    ED = { prevF: Object.fromEntries(parts(codeIn(d, layer)).map(p => [p.base, p.f])), f, layer, sel: parts(codeIn(d, layer)).map(p => p.base), fest: parts(codeIn(d, layer)).some(p => p.f) || (!codeIn(d, layer) && isSunOrFest(f)), fb: !!d.fb, im: !!d.im, n: d.n || '', c: d.c || '', pd: !!d.pd, pm: d.pm || '', eu: d.eu || 0, sw: d.sw || '', mode: d.sw ? 'dia' : d.eu ? 'dinero' : 'nada' };
     const names = [...new Set(Object.values(MAP).map(x => x.c).filter(Boolean))].sort();
     const sh = $('#sheet');
     sh.innerHTML = `<div class="ed-head"><div class="grab"></div>
@@ -544,8 +544,10 @@
     const d2 = day(f2), dt2 = parseISO(f2), d1 = day(ED.f);
     if (ED.swFor !== f2) {
       // turno propuesto para ese día: si ya estaba enlazado, el que tiene; si no, el que cede en el día original
-      const w = parts(d1.o || '').filter(p => isWorkBase(p.base)).map(p => p.base);
-      ED.swc = d2.sw === ED.f ? parts(real(d2)).map(p => p.base).join('-') : (w.length ? w.join('-') : (Object.keys(CODES).find(isWorkBase) || ''));
+      // si en este día hace turnos de más, el otro día libra (D); si cede turnos, el otro día los hace ella
+      const ow = parts(d1.o || '').filter(p => isWorkBase(p.base)).map(p => p.base), nw = ED.sel.filter(isWorkBase);
+      const gana = nw.filter(b => !ow.includes(b)), cede = ow.filter(b => !nw.includes(b));
+      ED.swc = d2.sw === ED.f ? parts(real(d2)).map(p => p.base).join('-') : (gana.length && !cede.length ? 'D' : cede.length ? cede.join('-') : (ow.length ? ow.join('-') : 'D'));
       ED.swFor = f2;
     }
     const opts = [...new Set([ED.swc, ...Object.keys(CODES).filter(isWorkBase), 'M-N', 'T-N', 'M-T', ...Object.keys(CODES).filter(b => !isWorkBase(b))])].filter(Boolean);
@@ -555,7 +557,12 @@
       <div class="codes" style="margin:0">${opts.map(o => `<button type="button" class="code-btn" data-swc="${esc(o)}" aria-pressed="${o === ED.swc}" style="background:${bg(o)};--cc:${info(parts(o)[0].base).color}">${esc(o)}</button>`).join('')}</div></div>
       <div class="muted" style="font-size:.85rem">Al guardar se actualizan los dos días en el calendario real.</div>`;
   }
-  function edCode() { return compose(ED.sel.map(b => ({ base: b, f: ED.fest }))); }
+  // La F de festivo: los turnos que ya la llevaban la conservan (p. ej. la noche del sábado);
+  // los nuevos solo la llevan si el día es domingo o festivo
+  function edCode() {
+    const prev = ED.prevF || {}, any = Object.values(prev).some(Boolean);
+    return compose(ED.sel.map(b => ({ base: b, f: ED.fest && (b in prev ? (any ? prev[b] : true) : (!any || isSunOrFest(ED.f))) })));
+  }
   function closeEditor() { PAT = null; MP = null; closeSheet(); }
   function closeSheet() { $('#sheet').classList.remove('on'); $('#scrim').classList.remove('on'); ED = null; if (S.reloadPending) setTimeout(S.reloadPending, 300); }
   // Guardar siempre cierra la ventana; si algo falla, se avisa en vez de quedarse abierta
@@ -938,6 +945,7 @@
       ED.layer = t.dataset.ly; const d = day(ED.f);
       const cc = codeIn(d, ED.layer);
       ED.sel = parts(cc).map(p => p.base);
+      ED.prevF = Object.fromEntries(parts(cc).map(p => [p.base, p.f]));
       ED.fest = parts(cc).some(p => p.f) || (!cc && isSunOrFest(ED.f));
       $('#ed-fest').checked = ED.fest;
       document.querySelectorAll('[data-ly]').forEach(b => b.setAttribute('aria-pressed', b.dataset.ly === ED.layer));
