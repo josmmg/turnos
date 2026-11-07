@@ -16,18 +16,18 @@
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#F2F4F7; --surface:#FFFFFF; --ink:#18202B; --ink-2:#4A5565; --ink-3:#8590A0; --line:#E2E6EC;
-  --m:#1A9FB4; --t:#2F9E44; --n:#6B3FC0; --d:#E39B1B; --v:#3B82D9; --comp:#D9B310; --il:#D9667A; --fibao:#B5462B; --fest:#C2255C; --today:#E3E7ED;
+  --bg:#F2F4F7; --surface:#FFFFFF; --ink:#18202B; --ink-2:#4A5565; --ink-3:#8590A0; --line:#E2E6EC; --wa:#128C4A;
+  --m:#1A9FB4; --t:#2F9E44; --n:#6B3FC0; --d:#E39B1B; --v:#3B82D9; --comp:#D9B310; --il:#D9667A; --fibao:#B5462B; --fest:#C2255C; --today:#E3E7ED; --trip:#FCE4EE; --trip-b:#F3A9C6;
   --radius-lg:22px; --radius:14px; --radius-sm:9px;
   --display:'Bricolage Grotesque', system-ui, sans-serif; --body:'Atkinson Hyperlegible', system-ui, sans-serif;
   --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
 }
 @media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){ --bg:#0F141B; --surface:#18202B; --ink:#EEF1F5; --ink-2:#B4BCC8; --ink-3:#7C8696; --line:#273140;
-    --m:#3CC0D4; --t:#4CC266; --n:#9C7BEA; --d:#F0B33E; --v:#5C9EEB; --comp:#E8C83A; --il:#E8899A; --fibao:#D46A4C; --fest:#F06595; --today:#2A3442; color-scheme:dark; }
+  :root:not([data-theme="light"]){ --bg:#0F141B; --surface:#18202B; --ink:#EEF1F5; --ink-2:#B4BCC8; --ink-3:#7C8696; --line:#273140; --wa:#4FD18A;
+    --m:#3CC0D4; --t:#4CC266; --n:#9C7BEA; --d:#F0B33E; --v:#5C9EEB; --comp:#E8C83A; --il:#E8899A; --fibao:#D46A4C; --fest:#F06595; --today:#2A3442; --trip:#45243A; --trip-b:#9B4A78; color-scheme:dark; }
 }
-:root[data-theme="dark"]{ --bg:#0F141B; --surface:#18202B; --ink:#EEF1F5; --ink-2:#B4BCC8; --ink-3:#7C8696; --line:#273140;
-    --m:#3CC0D4; --t:#4CC266; --n:#9C7BEA; --d:#F0B33E; --v:#5C9EEB; --comp:#E8C83A; --il:#E8899A; --fibao:#D46A4C; --fest:#F06595; --today:#2A3442; color-scheme:dark; }
+:root[data-theme="dark"]{ --bg:#0F141B; --surface:#18202B; --ink:#EEF1F5; --ink-2:#B4BCC8; --ink-3:#7C8696; --line:#273140; --wa:#4FD18A;
+    --m:#3CC0D4; --t:#4CC266; --n:#9C7BEA; --d:#F0B33E; --v:#5C9EEB; --comp:#E8C83A; --il:#E8899A; --fibao:#D46A4C; --fest:#F06595; --today:#2A3442; --trip:#45243A; --trip-b:#9B4A78; color-scheme:dark; }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
 html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased;overscroll-behavior-y:none}
@@ -73,7 +73,7 @@ h3{font-size:1.06rem;font-weight:700}
 .card{background:var(--surface);border-radius:var(--radius);padding:16px;border:1px solid var(--line)}
 
 /* tira de próximos días */
-.strip{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;padding:2px 2px 8px;margin:0 -16px;padding-left:16px;padding-right:16px;scrollbar-width:none}
+.strip{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-inline:16px;padding:2px 2px 8px;margin:0 -16px;padding-left:16px;padding-right:16px;scrollbar-width:none}
 .strip::-webkit-scrollbar{display:none}
 .daypill{flex:0 0 58px;scroll-snap-align:start;border-radius:16px;background:var(--surface);border:1px solid var(--line);padding:8px 4px 10px;text-align:center}
 .daypill .wd{font-size:.75rem;color:var(--ink-3)}
@@ -110,6 +110,14 @@ h3{font-size:1.06rem;font-weight:700}
 .cell.today{border:2px solid var(--ink);background:var(--today)}
 .cell .c{width:100%;border-radius:7px;color:#fff;font-weight:700;font-size:.78rem;text-align:center;padding:4px 0;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:clip}
 .cell .c.empty{background:transparent;color:var(--ink-3)}
+.cell.tripday{background:var(--trip);border-color:var(--trip-b)}
+.cell.today.tripday{border-color:var(--ink)}
+.daypill.tripday{background:var(--trip);border-color:var(--trip-b)}
+.leg-trip{background:var(--trip)!important;border:1px solid var(--trip-b)}
+.tripdot{display:inline-block;width:12px;height:12px;border-radius:4px;background:var(--trip);border:1px solid var(--trip-b);margin-right:6px;vertical-align:-1px}
+.trip-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;margin:14px 0 4px;border-radius:14px;background:var(--trip);border:1px solid var(--trip-b)}
+.trip-row small{display:block;color:var(--ink-2);font-size:.8rem;margin-top:2px}
+.trip-row .btn{min-height:38px;padding:0 12px;font-size:.88rem;white-space:normal}
 .cell.fbday{border-color:var(--fibao);box-shadow:inset 0 0 0 2px var(--fibao)}
 .cell.today.fbday{box-shadow:inset 0 0 0 2px var(--fibao),0 0 0 2px var(--ink)}
 .cell .badges{position:absolute;right:3px;top:2px;display:flex;gap:2px;align-items:center}
@@ -167,6 +175,13 @@ h3{font-size:1.06rem;font-weight:700}
 .cn .d small{display:block;font-family:var(--body);font-weight:400;font-size:.75rem;color:var(--ink-3)}
 .cn .t{color:var(--ink);line-height:1.35}
 .cn .t .star{color:var(--fest);margin-right:4px}
+.h3row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.h3row h3{margin:0}
+.wa{display:block;margin:0;padding:0 0 12px 72px;border-bottom:1px solid var(--line);font-size:.88rem;font-weight:700;color:var(--wa);text-decoration:underline;text-underline-offset:3px}
+.wa:last-child{border-bottom:0}
+.chg:has(+ .wa){border-bottom:0;padding-bottom:6px}
+.card.debe{display:block;width:100%;text-align:left;padding:4px 16px}
+.pat-prev .pp.work .pill{outline:2px solid var(--fest);outline-offset:1px}
 .mode-help{display:block;margin-top:6px;font-size:.82rem;color:var(--ink-3)}
 .pat-seq{display:flex;flex-wrap:wrap;gap:6px;min-height:36px;align-items:center;padding:8px;border:1px dashed var(--line);border-radius:12px}
 .pat-arrows{display:inline-flex;gap:4px;flex:0 0 auto}
@@ -347,6 +362,7 @@ h3{font-size:1.06rem;font-weight:700}
     </div>
     <div id="hoy-sky"></div>
     <div class="section"><h3>Próximos días</h3><div class="strip" id="strip"></div></div>
+    <div class="section" id="hoy-debe"></div>
     <div class="section"><div class="facts" id="facts"></div></div>
     <div class="section" id="hoy-year"></div>
     <div class="section" id="hoy-imp"></div>
@@ -364,7 +380,7 @@ h3{font-size:1.06rem;font-weight:700}
         <button id="lay-real" aria-pressed="true">Real</button>
         <button id="lay-orig" aria-pressed="false">Cuadrante</button>
       </div>
-      <button class="btn ghost" id="brush-toggle" aria-pressed="false" style="min-height:40px;padding:0 14px">Editar</button>
+      <span style="display:inline-flex;gap:6px"><button type="button" class="btn ghost" id="cal-find" aria-label="Buscar en las notas" style="min-height:40px;padding:0 12px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button><button class="btn ghost" id="brush-toggle" aria-pressed="false" style="min-height:40px;padding:0 14px">Editar</button></span>
     </div>
     <div class="grid7" id="cal-wd"></div>
     <div class="grid7" id="cal-grid"></div>

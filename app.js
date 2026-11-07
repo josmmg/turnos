@@ -91,7 +91,7 @@
     (S.data.dias || []).forEach(d => { MAP[d.f] = Object.assign({}, d); });
     Object.keys(S.pending).forEach(f => { MAP[f] = Object.assign({}, MAP[f] || { f }, S.pending[f]); clean(MAP[f]); });
   }
-  function clean(d) { ['r', 'o', 'n', 'c', 'pm', 'sw'].forEach(k => { if (d[k] === '') delete d[k]; }); ['fb', 'fe', 'im', 'pd', 'eu'].forEach(k => { if (!d[k]) delete d[k]; }); }
+  function clean(d) { ['r', 'o', 'n', 'c', 'pm', 'sw', 'vj'].forEach(k => { if (d[k] === '') delete d[k]; }); ['fb', 'fe', 'im', 'pd', 'eu'].forEach(k => { if (!d[k]) delete d[k]; }); }
 
   /* ───────── horarios ───────── */
   function intervals(fromDate, days) {
@@ -192,7 +192,7 @@
     const strip = $('#strip'); strip.innerHTML = '';
     for (let i = 0; i < 21; i++) {
       const dt = addDays(now, i), ff = iso(dt), dd = day(ff), c = real(dd);
-      strip.appendChild(h(`<button class="daypill${i === 0 ? ' today' : ''}${dd.fb ? ' fbday' : ''}${dd.pd ? ' pendday' : ''}${isSunOrFest(ff) ? ' fest' : ''}" data-edit="${ff}" aria-label="${fechaLarga(dt)}: ${esc(c || 'sin turno')}">
+      strip.appendChild(h(`<button class="daypill${i === 0 ? ' today' : ''}${dd.fb ? ' fbday' : ''}${dd.pd ? ' pendday' : ''}${dd.vj ? ' tripday' : ''}${isSunOrFest(ff) ? ' fest' : ''}" data-edit="${ff}" aria-label="${fechaLarga(dt)}: ${esc(c || 'sin turno')}">
         <div class="wd">${i === 0 ? 'hoy' : DIAS[dt.getDay()].slice(0, 3)}</div><div class="dn">${dt.getDate()}</div>
         <div class="cd" style="background:${c ? bg(c) : 'var(--line)'};${c ? '' : 'color:var(--ink-3)'}">${esc(c || '—')}</div></button>`));
     }
@@ -206,6 +206,9 @@
     let wkH = 0; for (let i = 0; i < 7; i++) wkH += hoursOf(real(day(iso(addDays(wk0, i)))));
     const inDays = (dt) => { const n = Math.round((dt - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5); return n === 1 ? 'mañana' : 'en ' + n + ' días'; };
     const fact = (k, v, s) => `<div class="fact"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s || ''}</div></div>`;
+    const sal = saldos();
+    $('#hoy-debe').innerHTML = sal.length ? `<h3>Horas pendientes de devolver</h3><button type="button" class="card debe" data-s="cam">` + sal.slice(0, 5).map(([n, h]) =>
+      `<span class="saldo${isCasa(n) ? ' casa' : ''}"><span class="who">${isCasa(n) ? ICON_CASA : ''}${esc(n)}</span><span class="h ${h > 0 ? 'pos' : 'neg'}">${h > 0 ? 'te debe ' : 'le debes '}${fmtH(Math.abs(h))} h</span></span>`).join('') + '</button>' : '';
     $('#facts').innerHTML =
       fact('Próxima noche', nN ? cap(DIAS[nN.getDay()]) + ' ' + nN.getDate() : '—', nN ? inDays(nN) : 'sin noches a la vista') +
       fact('Próximo día libre', nL ? cap(DIAS[nL.getDay()]) + ' ' + nL.getDate() : '—', nL ? inDays(nL) : '') +
@@ -296,7 +299,7 @@
     for (let dt = new Date(y, m, 1); dt.getMonth() === m; dt = addDays(dt, 1)) {
       const f = iso(dt), d = day(f), c = codeIn(d, S.layer);
       const diff = S.layer === 'real' && d.o && real(d) !== d.o;
-      grid.appendChild(h(`<button class="cell${d.fb ? ' fbday' : ''}${d.pd ? ' pendday' : ''}${isSunOrFest(f) ? ' fest' : ''}${f === today ? ' today' : ''}${S.brushOn ? ' paintable' : ''}" data-day="${f}" aria-label="${fechaLarga(dt)}: ${esc(c || 'sin turno')}${diff ? ', cambiado, en el cuadrante ' + esc(d.o) : ''}${d.pd ? ', por cambiar' : ''}${d.fb ? ', Fibao' : ''}">
+      grid.appendChild(h(`<button class="cell${d.fb ? ' fbday' : ''}${d.pd ? ' pendday' : ''}${d.vj ? ' tripday' : ''}${isSunOrFest(f) ? ' fest' : ''}${f === today ? ' today' : ''}${S.brushOn ? ' paintable' : ''}" data-day="${f}" aria-label="${fechaLarga(dt)}: ${esc(c || 'sin turno')}${diff ? ', cambiado, en el cuadrante ' + esc(d.o) : ''}${d.pd ? ', por cambiar' : ''}${d.vj ? ', ' + esc(d.vj) : ''}${d.fb ? ', Fibao' : ''}">
         ${d.im ? '<span class="badges"><span class="star">★</span></span>' : ''}
         <span class="n">${dt.getDate()}</span><span class="was">${diff ? esc(d.o) : ''}</span><span class="c${c ? '' : ' empty'}" style="${c ? 'background:' + bg(c) : ''}">${esc(c) || '&nbsp;'}</span></button>`));
     }
@@ -306,13 +309,18 @@
     const leg = [...used].filter(b => CODES[b]).map(b => `<span><i style="background:${info(b).color}"></i>${esc(b)} ${esc(info(b).nombre)}</span>`);
     leg.push('<span><i style="background:transparent;box-shadow:inset 0 0 0 2px var(--fibao)"></i>Fibao</span>');
     leg.push('<span><i class="leg-pend"></i>Por cambiar</span>');
+    leg.push('<span><i class="leg-trip"></i>Viaje</span>');
     leg.push('<span><b style="color:var(--fest);font-size:.9rem">★</b>Fecha a tener en cuenta</span>');
     if (S.layer === 'real') leg.push('<span><s class="muted" style="font-size:.78rem">M</s>Ya cambiado: tachado, lo que ponía el cuadrante</span>');
     $('#legend').innerHTML = leg.join('');
     // fechas a tener en cuenta del mes, con su nota
     const notas = [];
     for (let dt = new Date(y, m, 1); dt.getMonth() === m; dt = addDays(dt, 1)) { const dd = day(iso(dt)); if (dd.im) notas.push([dt, dd]); }
-    $('#cal-notes').innerHTML = notas.length ? `<div class="cal-notes"><h3>Fechas a tener en cuenta</h3><div class="card" style="padding:2px 16px">` + notas.map(([dt, dd]) =>
+    const viajes = [];
+    for (let dt = new Date(y, m, 1); dt.getMonth() === m; dt = addDays(dt, 1)) { const f = iso(dt), dd = day(f); if (dd.vj && day(iso(addDays(dt, -1))).vj !== dd.vj || dd.vj && dt.getDate() === 1) viajes.push(tripRun(f)); }
+    const trips = viajes.map(run => { const a = parseISO(run[0]), b = parseISO(run[run.length - 1]);
+      return `<button type="button" class="cn" data-edit="${iso(a)}"><span class="d">${a.getDate()}<small>${DIAS[a.getDay()]}</small></span><span class="t"><span class="tripdot"></span>${esc(day(run[0]).vj)} · ${run.length === 1 ? '1 día' : 'hasta el ' + b.getDate() + (b.getMonth() !== a.getMonth() ? ' de ' + MESES[b.getMonth()] : '') + ' · ' + run.length + ' días'}</span></button>`; });
+    $('#cal-notes').innerHTML = (notas.length || trips.length) ? `<div class="cal-notes"><h3>Fechas a tener en cuenta</h3><div class="card" style="padding:2px 16px">` + trips.join('') + notas.map(([dt, dd]) =>
       `<button type="button" class="cn" data-edit="${iso(dt)}"><span class="d">${dt.getDate()}<small>${DIAS[dt.getDay()]}</small></span><span class="t"><span class="star">★</span>${esc(dd.n || 'Sin descripción. Toca para añadirla.')}</span></button>`).join('') + '</div></div>' : '';
     // pincel
     $('#brushbar').hidden = !S.brushOn;
@@ -336,6 +344,111 @@
     if (code && isWorkBase(code) && isSunOrFest(f)) code += 'F';
     setLayer(f, S.layer, code);
   }
+  /* ───────── saldos con compañeras y la casa (todos los años) ───────── */
+  function saldos() {
+    const s = {};
+    Object.values(MAP).forEach(d => {
+      if (!d.c || d.eu || !d.o || real(d) === d.o) return;
+      s[d.c] = (s[d.c] || 0) + hoursOf(real(d)) - hoursOf(d.o);
+    });
+    return Object.keys(s).filter(n => Math.abs(s[n]) > 0.01).sort((a, b) => (isCasa(b) - isCasa(a)) || Math.abs(s[b]) - Math.abs(s[a])).map(n => [n, s[n]]);
+  }
+  // días libres cercanos a una fecha (para ofrecerlos a cambio)
+  function libresCerca(f, max) {
+    const base = parseISO(f), hoy = iso(new Date()), out = [];
+    for (let k = 1; k <= 21 && out.length < max * 2; k++) {
+      [k, -k].forEach(s => {
+        const dt = addDays(base, s), ff = iso(dt), d = day(ff), c = real(d);
+        if (ff >= hoy && c && !worked(c) && !d.pd && !parts(c).some(p => p.base === 'V' || p.base === 'IL')) out.push(dt);
+      });
+    }
+    return out.slice(0, max).sort((a, b) => a - b);
+  }
+  const diaTxt = (dt, ref) => DIAS[dt.getDay()] + ' ' + dt.getDate() + (!ref || dt.getMonth() !== ref.getMonth() ? ' de ' + MESES[dt.getMonth()] : '');
+  function mensajeCambio(f) {
+    const d = day(f), dt = parseISO(f), c = real(d);
+    const turno = parts(c).filter(p => isWorkBase(p.base)).map(p => shortName(p.base).toLowerCase()).join(' y ') || 'turno';
+    const lib = libresCerca(f, 4);
+    let t = '¡Hola! ¿Me podrías cambiar la ' + turno + ' del ' + diaTxt(dt) + '?';
+    if (lib.length) t += ' Yo te puedo hacer un turno el ' + lib.map(x => diaTxt(x, dt)).join(', ').replace(/, ([^,]*)$/, ' o $1') + ', que los tengo libres.';
+    return t + ' ¡Gracias!';
+  }
+
+  /* ───────── planificar un viaje ───────── */
+  let TRIP = null;
+  function openTrip() {
+    const hoy = new Date();
+    TRIP = { desde: iso(addDays(hoy, 30)), hasta: iso(addDays(hoy, 37)), motivo: 'Viaje' };
+    PAT = null; MP = null; ED = null;
+    $('#sheet').innerHTML = `<div class="grab"></div><h2>Planificar un viaje</h2>
+      <p class="muted" style="margin:6px 0 0">Elige las fechas y verás qué turnos te caen. El viaje se pinta en rosa en el calendario y los días que trabajes pasan a «Por negociar».</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <label class="field"><span>Desde</span><input type="date" id="trip-from" value="${TRIP.desde}"></label>
+        <label class="field"><span>Hasta</span><input type="date" id="trip-to" value="${TRIP.hasta}"></label></div>
+      <label class="field"><span>Motivo</span><input id="trip-why" value="${TRIP.motivo}" placeholder="Ej.: viaje a Japón"></label>
+      <div class="field"><span>Turnos en esas fechas</span><div id="trip-prev"></div></div>
+      <div class="actions"><button type="button" class="btn ghost" id="ed-back">Volver</button><button type="button" class="btn" id="trip-apply">Marcar</button></div>`;
+    drawTrip();
+    $('#sheet').classList.add('on'); $('#scrim').classList.add('on');
+  }
+  function tripDays() {
+    const out = [], a = parseISO(TRIP.desde), b = parseISO(TRIP.hasta);
+    if (!(a <= b)) return out;
+    for (let dt = a, n = 0; dt <= b && n < 120; dt = addDays(dt, 1), n++) out.push({ f: iso(dt), dt, d: day(iso(dt)) });
+    return out;
+  }
+  function drawTrip() {
+    const ds = tripDays(), trab = ds.filter(x => worked(real(x.d)));
+    $('#trip-prev').innerHTML = ds.length ? `<div class="pat-prev">${ds.map(x => `<span class="pp${worked(real(x.d)) ? ' work' : ''}"><i>${x.dt.getDate()}</i>${pill(real(x.d))}</span>`).join('')}</div>
+      <p style="margin:10px 0 0"><b>${trab.length} ${trab.length === 1 ? 'turno' : 'turnos'} que cambiar</b> · ${ds.length - trab.length} días libres o de vacaciones</p>` : '<p class="muted">Revisa las fechas: «Hasta» tiene que ser igual o posterior a «Desde».</p>';
+    $('#trip-apply').textContent = !ds.length ? 'Revisa las fechas' : trab.length ? 'Apuntar y marcar ' + trab.length : 'Apuntar el viaje';
+    $('#trip-apply').disabled = !ds.length;
+  }
+  function applyTrip() {
+    const motivo = ($('#trip-why').value || 'Viaje').trim();
+    const ds = tripDays(), trab = ds.filter(x => worked(real(x.d)));
+    ds.forEach(x => save(x.f, worked(real(x.d)) ? { vj: motivo, pd: 1, pm: motivo } : { vj: motivo }));
+    TRIP = null; closeEditor();
+    S.camYear = trab.length ? trab[0].dt.getFullYear() : S.camYear;
+    toast(trab.length ? trab.length + ' días marcados para negociar' : 'Viaje apuntado en el calendario'); show(trab.length ? 'cam' : 'cal');
+  }
+
+  function tripRun(f) {
+    const name = day(f).vj, out = [];
+    if (!name) return out;
+    for (let dt = parseISO(f); day(iso(dt)).vj === name; dt = addDays(dt, -1)) out.unshift(iso(dt));
+    for (let dt = addDays(parseISO(f), 1); day(iso(dt)).vj === name; dt = addDays(dt, 1)) out.push(iso(dt));
+    return out;
+  }
+  function deleteTrip(f) {
+    const name = day(f).vj, run = tripRun(f);
+    run.forEach(x => { const d = day(x); save(x, d.pd && d.pm === name && !d.c ? { vj: '', pd: 0, pm: '' } : { vj: '' }); });
+    closeEditor(); toast('Viaje borrado (' + run.length + ' días)');
+  }
+
+  /* ───────── buscar en las notas ───────── */
+  let FIND = null;
+  function openFind() {
+    PAT = null; MP = null; ED = null; TRIP = null; FIND = { q: '' };
+    $('#sheet').innerHTML = `<div class="grab"></div><h2>Buscar en las notas</h2>
+      <div class="search" style="margin-top:12px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="find-q" type="text" enterkeyhint="search" placeholder="Formación, médico, viaje…" autocomplete="off" aria-label="Buscar en las notas"></div>
+      <div id="find-res"></div>
+      <div class="actions"><button type="button" class="btn ghost" id="ed-back">Volver</button></div>`;
+    drawFind();
+    $('#sheet').classList.add('on'); $('#scrim').classList.add('on');
+    setTimeout(() => $('#find-q').focus(), 280);
+  }
+  function drawFind() {
+    const norm = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const q = norm(FIND.q).trim();
+    if (q.length < 2) { $('#find-res').innerHTML = '<p class="muted">Escribe al menos dos letras. Busca en las notas, en los motivos de los cambios y en los nombres de las compañeras.</p>'; return; }
+    const hits = Object.values(MAP).filter(d => norm(d.n).includes(q) || norm(d.pm).includes(q) || norm(d.c).includes(q) || norm(d.vj).includes(q)).sort((a, b) => a.f < b.f ? 1 : -1).slice(0, 100);
+    $('#find-res').innerHTML = hits.length ? `<p class="muted" style="margin:0 0 4px">${hits.length === 100 ? 'Los 100 más recientes' : hits.length + (hits.length === 1 ? ' día' : ' días')}</p><div class="card" style="padding:2px 16px">` + hits.map(d => {
+      const dt = parseISO(d.f), txt = [d.vj && ('Viaje: ' + d.vj), d.n, d.pm && d.pm !== d.vj && ('Por negociar: ' + d.pm), d.c && ('Con ' + d.c)].filter(Boolean).join(' · ');
+      return `<button type="button" class="cn" data-goday="${d.f}"><span class="d">${dt.getDate()} ${MESES_C[dt.getMonth()]}<small>${dt.getFullYear()}</small></span><span class="t">${pill(real(d))} ${esc(txt)}</span></button>`;
+    }).join('') + '</div>' : '<p class="muted">No hay ningún día con eso.</p>';
+  }
+
   /* ───────── elegir mes y año ───────── */
   let MP = null;
   function openMonthPicker() {
@@ -480,7 +593,7 @@
   function openEditor(f, focus) {
     const d = day(f), dt = parseISO(f);
     const layer = S.view === 'cal' ? S.layer : 'real';
-    ED = { prevF: Object.fromEntries(parts(codeIn(d, layer)).map(p => [p.base, p.f])), f, layer, sel: parts(codeIn(d, layer)).map(p => p.base), fest: parts(codeIn(d, layer)).some(p => p.f) || (!codeIn(d, layer) && isSunOrFest(f)), fb: !!d.fb, im: !!d.im, n: d.n || '', c: d.c || '', pd: !!d.pd, pm: d.pm || '', eu: d.eu || 0, sw: d.sw || '', mode: d.sw ? 'dia' : d.eu ? 'dinero' : 'nada' };
+    ED = { prevF: Object.fromEntries(parts(codeIn(d, layer)).map(p => [p.base, p.f])), f, layer, sel: parts(codeIn(d, layer)).map(p => p.base), fest: parts(codeIn(d, layer)).some(p => p.f) || (!codeIn(d, layer) && isSunOrFest(f)), fb: !!d.fb, im: !!d.im, n: d.n || '', c: d.c || '', pd: !!d.pd, pm: d.pm || '', vj: d.vj || '', eu: d.eu || 0, sw: d.sw || '', mode: d.sw ? 'dia' : d.eu ? 'dinero' : 'nada' };
     const names = [...new Set(Object.values(MAP).map(x => x.c).filter(Boolean))].sort();
     const sh = $('#sheet');
     sh.innerHTML = `<div class="ed-head"><div class="grab"></div>
@@ -494,6 +607,7 @@
       <div class="row-toggle"><label for="ed-fb">Mañana en Fibao<small>${esc(cfg().fibao_inicio || '')}–${esc(cfg().fibao_fin || '')}</small></label><input type="checkbox" class="switch fb" id="ed-fb" ${ED.fb ? 'checked' : ''}></div>
       <div class="row-toggle"><label for="ed-im">Fecha a tener en cuenta<small>Sale en Hoy y en el calendario del iPhone</small></label><input type="checkbox" class="switch" id="ed-im" ${ED.im ? 'checked' : ''}></div>
       <label class="field"><span>Nota</span><textarea id="ed-n" rows="2" placeholder="Ej.: formación, médico, cumpleaños…">${esc(ED.n)}</textarea></label>
+      ${ED.vj ? `<div class="trip-row"><span><b>${esc(ED.vj)}</b><small>${tripRun(ED.f).length} días en el calendario</small></span><button type="button" class="btn ghost" data-tripdel="${ED.f}">Borrar el viaje</button></div>` : ''}
       <h3 class="ed-group">Cambio de turno</h3>
       <div class="row-toggle"><label for="ed-pd">Necesito cambiar este día<small>Lo apunta en «Por negociar», en la pantalla Cambios</small></label><input type="checkbox" class="switch pd" id="ed-pd" ${ED.pd ? 'checked' : ''}></div>
       <label class="field" id="ed-pm-wrap" ${ED.pd ? '' : 'hidden'}><span>Para qué lo necesitas</span><input id="ed-pm" value="${esc(ED.pm)}" placeholder="Ej.: viaje, boda, médico…" autocomplete="off"></label>
@@ -568,7 +682,7 @@
     const prev = ED.prevF || {}, any = Object.values(prev).some(Boolean);
     return compose(ED.sel.map(b => ({ base: b, f: ED.fest && (b in prev ? (any ? prev[b] : true) : (!any || isSunOrFest(ED.f))) })));
   }
-  function closeEditor() { PAT = null; MP = null; closeSheet(); }
+  function closeEditor() { PAT = null; MP = null; TRIP = null; FIND = null; closeSheet(); }
   function closeSheet() { $('#sheet').classList.remove('on'); $('#scrim').classList.remove('on'); ED = null; if (S.reloadPending) setTimeout(S.reloadPending, 300); }
   // Guardar siempre cierra la ventana; si algo falla, se avisa en vez de quedarse abierta
   function saveEditor() {
@@ -727,11 +841,11 @@
       list.length = 0; fl.forEach(x => list.push(x));
       if (!list.length) { $('#cam-body').innerHTML = `<div class="empty-note">No hay cambios en ${y} con «${esc(S.camQ)}». Prueba con otro nombre o con otro año.</div>`; return; }
     }
-    let html = q ? '' : `<h3>Por negociar${pend.length ? ' · ' + pend.length : ''}</h3>`;
+    let html = q ? '' : `<div class="h3row"><h3>Por negociar${pend.length ? ' · ' + pend.length : ''}</h3><button type="button" class="btn ghost" id="trip-open" style="min-height:38px;padding:0 12px;font-size:.9rem">Planificar un viaje</button></div>`;
     if (!q) html += pend.length ? '<div class="card" style="padding:4px 16px">' + pend.map(x => `
       <button class="chg" data-edit="${x.f}" data-focus="c"><span class="dt">${x.dt.getDate()} ${MESES_C[x.dt.getMonth()]}<small>${DIAS[x.dt.getDay()]}</small></span>
       <span><span class="pills">${pill(real(x.d))}${x.f < today ? '<span class="muted" style="font-size:.8rem">ya pasó</span>' : ''}</span><span class="who">${esc(x.d.pm || 'Sin motivo apuntado')}</span></span>
-      <span class="resolve">Resolver</span></button>`).join('') + '</div>'
+      <span class="resolve">Resolver</span></button>${x.f >= today ? `<a class="wa" href="https://wa.me/?text=${encodeURIComponent(mensajeCambio(x.f))}" target="_blank" rel="noopener">Pedir el cambio por WhatsApp</a>` : ''}`).join('') + '</div>'
       : '<div class="empty-note">No tienes días por negociar. Para apuntar uno, abre el día y activa «Necesito cambiar este día».</div>';
     if (!list.length) { $('#cam-body').innerHTML = html + `<div class="section"><div class="empty-note">No hay cambios hechos en ${y}: el calendario real coincide con el cuadrante.</div></div>`; return; }
     const cobrado = list.reduce((s, x) => s + (x.d.eu > 0 ? x.d.eu : 0), 0), pagado = list.reduce((s, x) => s + (x.d.eu < 0 ? -x.d.eu : 0), 0);
@@ -774,6 +888,8 @@
         ${f('horas_fibao', 'Horas de una mañana en Fibao', 'Ej.: 5', 'num')}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${f('fibao_inicio', 'Entrada Fibao', '08:00')}${f('fibao_fin', 'Salida Fibao', '14:00')}</div>
         ${f('aviso_minutos', 'Aviso antes de cada turno (minutos)', '60', 'num')}
+        <p class="muted" style="font-size:.85rem;margin:12px 0 0">Si quieres un aviso distinto para algún turno, ponlo aquí (en minutos). Vacío = el general. Por ejemplo, 180 para que la noche avise 3 horas antes.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${f('aviso_M', 'Antes de la mañana', '', 'num')}${f('aviso_T', 'Antes de la tarde', '', 'num')}${f('aviso_N', 'Antes de la noche', '', 'num')}${f('aviso_FB', 'Antes de Fibao', '', 'num')}</div>
         <button class="btn wide" id="aj-save" style="margin-top:16px">Guardar ajustes</button>
       </div>
       <div class="section card"><h3>Calendario del iPhone</h3>
@@ -933,6 +1049,11 @@
     if (t.id === 'brush-pat') { openPattern(); return; }
     if (t.dataset.quickc && ED) { $('#ed-c').value = t.dataset.quickc; return; }
     if (t.id === 'cal-pick') { openMonthPicker(); return; }
+    if (t.id === 'trip-open') { openTrip(); return; }
+    if (t.dataset.tripdel) { if (t.dataset.sure) deleteTrip(t.dataset.tripdel); else { t.dataset.sure = '1'; t.textContent = '¿Seguro? Toca otra vez para borrarlo'; } return; }
+    if (TRIP && t.id === 'trip-apply') { applyTrip(); return; }
+    if (t.id === 'cal-find') { openFind(); return; }
+    if (FIND && t.dataset.goday) { const dt = parseISO(t.dataset.goday); closeEditor(); show('cal'); S.month = new Date(dt.getFullYear(), dt.getMonth(), 1); renderCal(); setTimeout(() => openEditor(t.dataset.goday), 320); return; }
     if (t.id === 'cam-q-clear') { S.camQ = ''; $('#cam-q').value = ''; renderCam(); return; }
     if (MP && t.dataset.mpy) { MP.y += Number(t.dataset.mpy); drawMonthPicker(); return; }
     if (MP && t.dataset.mpm !== undefined) { S.month = new Date(MP.y, Number(t.dataset.mpm), 1); MP = null; closeEditor(); renderCal(); return; }
@@ -979,7 +1100,15 @@
     }
   });
   $('#cam-q').addEventListener('input', (e) => { S.camQ = e.target.value; renderCam(); });
+  document.addEventListener('input', (e) => {
+    if (FIND && e.target.id === 'find-q') { FIND.q = e.target.value; drawFind(); }
+  });
   document.addEventListener('change', (e) => {
+    if (TRIP) {
+      if (e.target.id === 'trip-from') TRIP.desde = e.target.value || TRIP.desde;
+      if (e.target.id === 'trip-to') TRIP.hasta = e.target.value || TRIP.hasta;
+      drawTrip(); return;
+    }
     if (PAT) {
       if (e.target.id === 'pat-from') PAT.desde = e.target.value || PAT.desde;
       if (e.target.id === 'pat-to') PAT.hasta = e.target.value || PAT.hasta;
