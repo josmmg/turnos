@@ -130,6 +130,15 @@ h3{font-size:1.06rem;font-weight:700}
 .resolve{font-weight:700;font-size:.85rem;color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:6px 12px}
 .cell .was{font-size:.66rem;line-height:1;min-height:.66rem;color:var(--ink-3);text-decoration:line-through;font-weight:700}
 .leg-pend{background:repeating-linear-gradient(135deg,var(--d) 0 3px,color-mix(in srgb,var(--d) 35%,transparent) 3px 6px)!important}
+.mode-help{display:block;margin-top:6px;font-size:.82rem;color:var(--ink-3)}
+.pat-seq{display:flex;flex-wrap:wrap;gap:6px;min-height:36px;align-items:center;padding:8px;border:1px dashed var(--line);border-radius:12px}
+.pat-arrows{display:inline-flex;gap:4px;flex:0 0 auto}
+.pat-arrows .icon-btn{border:1px solid var(--line);font-size:1.3rem}
+.pat-seq .pill,.pat-prev .pill{color:#fff}
+.pat-prev{display:flex;flex-wrap:wrap;gap:6px}
+.pat-prev .pp{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:38px}
+.pat-prev .pp i{font-style:normal;font-size:.72rem;color:var(--ink-3)}
+.btn[disabled]{opacity:.4}
 .swbox{margin-top:10px;padding:12px;border-radius:12px;background:var(--bg);display:grid;gap:8px}
 .swrow{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .swrow select{font:inherit;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);min-width:110px}
@@ -325,6 +334,7 @@ h3{font-size:1.06rem;font-weight:700}
     <div class="brushbar" id="brushbar" hidden>
       <p id="brush-msg">Elige un turno y toca los días a los que se lo quieres poner.</p>
       <div class="row" id="brush-codes"></div>
+      <button type="button" class="btn ghost wide" id="brush-pat" style="margin-top:10px;min-height:44px" hidden>Rellenar con un patrón…</button>
     </div>
     <div class="legend" id="legend"></div>
   </section>

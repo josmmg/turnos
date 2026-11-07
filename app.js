@@ -301,6 +301,7 @@
       $('#brush-codes').innerHTML = opts.map(o => `<button class="code-btn" aria-pressed="${S.brush === o.code}" data-brush="${o.code}" style="background:${o.color};--cc:${o.color}">${esc(o.code)}</button>`).join('') +
         `<button class="code-btn" aria-pressed="${S.brush === '__fb'}" data-brush="__fb" style="background:var(--fibao);--cc:var(--fibao)">Fibao</button>` +
         `<button class="code-btn" aria-pressed="${S.brush === ''}" data-brush="" style="background:var(--ink-3);--cc:var(--ink-3)">Borrar</button>`;
+      $('#brush-pat').hidden = S.layer !== 'orig';
       $('#brush-msg').textContent = S.brush == null ? 'Elige un turno y toca los días a los que se lo quieres poner en el ' + (S.layer === 'orig' ? 'cuadrante.' : 'calendario real.')
         : S.brush === '__fb' ? 'Toca los días para poner o quitar Fibao.' : (S.brush ? 'Poniendo ' + S.brush : 'Vaciando días') + ' en el ' + (S.layer === 'orig' ? 'cuadrante' : 'calendario real') + '. Domingos y festivos llevan la F solos.';
     }
@@ -313,6 +314,110 @@
     if (code && isWorkBase(code) && isSunOrFest(f)) code += 'F';
     setLayer(f, S.layer, code);
   }
+  /* ───────── relleno del cuadrante con un patrón ───────── */
+  const baseCode = (c) => parts(c).map(p => p.base).join('-');
+  const daysBetween = (a, b) => Math.round((Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / 864e5);
+  // Busca el ciclo que se repite en el cuadrante de los últimos meses (por ejemplo, D D D D T T M M-N cada 8 días)
+  function detectPattern() {
+    const fechas = Object.keys(MAP).filter(f => MAP[f].o).sort();
+    if (fechas.length < 60) return null;
+    const last = parseISO(fechas[fechas.length - 1]);
+    const N = 365, seq = [];
+    for (let i = N - 1; i >= 0; i--) { const dt = addDays(last, -i); seq.push({ dt, c: baseCode(day(iso(dt)).o) }); }
+    const ok = (c) => c && parts(c).every(p => isWorkBase(p.base) || p.base === 'D');
+    // el bloque de L días que más veces se repite tal cual (con al menos un turno de trabajo)
+    let best = null;
+    for (let L = 4; L <= 16; L++) {
+      const cnt = {};
+      for (let i = 0; i + L <= seq.length; i++) {
+        const w = seq.slice(i, i + L).map(x => x.c);
+        // solo bloques completos: empiezan con libres justo después de trabajar y acaban en turno justo antes de librar
+        const prev = i > 0 ? seq[i - 1].c : null, next = i + L < seq.length ? seq[i + L].c : null;
+        if (!w.every(ok) || w[0] !== 'D' || w[L - 1] === 'D' || !prev || prev === 'D' || !ok(prev) || next !== 'D') continue;
+        const k = w.join(' ');
+        cnt[k] = (cnt[k] || 0) + 1;
+      }
+      Object.keys(cnt).forEach(k => {
+        const cov = cnt[k] * L;
+        if (cnt[k] >= 3 && (!best || cov > best.cov * 1.05)) best = { codes: k.split(' '), n: cnt[k], cov, L };
+      });
+    }
+    if (!best) return null;
+    // que empiece por el primer día libre después de trabajar
+    const L = best.L, c = best.codes;
+    let r = c.findIndex((x, i) => x === 'D' && c[(i - 1 + L) % L] !== 'D');
+    if (r < 0) r = 0;
+    const codes = c.slice(r).concat(c.slice(0, r));
+    // fase que mejor encaja con las últimas semanas del cuadrante
+    let shift = 0, bm = -1;
+    for (let s = 0; s < L; s++) {
+      let m = 0;
+      for (let i = seq.length - 2 * L; i < seq.length; i++) if (codes[(((daysBetween(last, seq[i].dt) + s) % L) + L) % L] === seq[i].c) m++;
+      if (m > bm) { bm = m; shift = s; }
+    }
+    return { codes, anchor: last, shift, n: best.n, fit: bm / (2 * L) };
+  }
+  let PAT = null;
+  function openPattern() {
+    const det = detectPattern();
+    const fechas = Object.keys(MAP).filter(f => MAP[f].o).sort();
+    const desde = fechas.length ? addDays(parseISO(fechas[fechas.length - 1]), 1) : new Date();
+    const hasta = new Date(desde.getFullYear(), desde.getMonth() + 1, 0);
+    PAT = { codes: det ? det.codes.slice() : [], anchor: det ? det.anchor : desde, det, shift: det ? det.shift : 0, desde: iso(desde), hasta: iso(hasta), over: false };
+    ED = null;
+    $('#sheet').innerHTML = `<div class="grab"></div><h2>Rellenar el cuadrante con un patrón</h2>
+      <p class="muted" id="pat-det" style="margin:6px 0 0"></p>
+      <div class="field"><span>Patrón que se repite</span><div class="pat-seq" id="pat-seq"></div></div>
+      <div class="codes" style="margin:8px 0" id="pat-add"></div>
+      <div style="display:flex;gap:8px"><button type="button" class="btn ghost" id="pat-del" style="min-height:40px">⌫ Quitar el último</button><button type="button" class="btn ghost" id="pat-clear" style="min-height:40px">Empezar de cero</button></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <label class="field"><span>Desde</span><input type="date" id="pat-from" value="${PAT.desde}"></label>
+        <label class="field"><span>Hasta</span><input type="date" id="pat-to" value="${PAT.hasta}"></label></div>
+      <div class="swrow" style="margin-top:12px"><span id="pat-phase"></span><span class="pat-arrows"><button type="button" class="icon-btn" data-patshift="-1" aria-label="Empezar una posición antes">‹</button><button type="button" class="icon-btn" data-patshift="1" aria-label="Empezar una posición después">›</button></span></div>
+      <div class="row-toggle"><label for="pat-over">Sustituir días ya rellenos<small>Si está apagado, solo rellena los días vacíos del cuadrante</small></label><input type="checkbox" class="switch" id="pat-over"></div>
+      <div class="field"><span>Vista previa</span><div class="pat-prev" id="pat-prev"></div></div>
+      <p class="muted" style="font-size:.85rem">Se apunta en el cuadrante y en el real a la vez. Domingos y festivos llevan la F solos.</p>
+      <div class="actions"><button type="button" class="btn ghost" id="ed-back">Volver</button><button type="button" class="btn" id="pat-apply">Rellenar</button></div>`;
+    $('#pat-add').innerHTML = [...Object.keys(CODES).filter(b => isWorkBase(b) || b === 'D'), 'M-N', 'T-N', 'M-T'].map(c => `<button type="button" class="code-btn" data-patadd="${c}" style="background:${bg(c)}">${esc(c)}</button>`).join('');
+    drawPattern();
+    $('#sheet').classList.add('on'); $('#scrim').classList.add('on');
+  }
+  function patCode(dt) {
+    const L = PAT.codes.length; if (!L) return '';
+    const i = (((daysBetween(PAT.anchor, dt) + PAT.shift) % L) + L) % L;
+    return PAT.codes[i];
+  }
+  function patDays() {
+    const out = [], a = parseISO(PAT.desde), b = parseISO(PAT.hasta);
+    if (!PAT.codes.length || !(a <= b)) return out;
+    for (let dt = a, n = 0; dt <= b && n < 400; dt = addDays(dt, 1), n++) {
+      const f = iso(dt);
+      if (!PAT.over && day(f).o) continue;
+      out.push({ f, dt, code: compose(parts(patCode(dt)).map(p => ({ base: p.base, f: isSunOrFest(f) }))) });
+    }
+    return out;
+  }
+  function drawPattern() {
+    const det = PAT.det;
+    $('#pat-det').textContent = det ? 'Este bloque de ' + det.codes.length + ' días se repite ' + det.n + ' veces en tu cuadrante del último año. Revisa por qué turno empieza enero con las flechas, o cambia el patrón.' : 'No he encontrado un ciclo claro. Crea el patrón tocando los turnos en orden.';
+    $('#pat-seq').innerHTML = PAT.codes.length ? PAT.codes.map((c, i) => `<span class="pill" style="background:${bg(c)}">${esc(c)}</span>`).join('') : '<span class="muted">Toca los turnos de abajo en orden</span>';
+    const a = parseISO(PAT.desde);
+    const c0 = patCode(a);
+    $('#pat-phase').innerHTML = c0 ? `El ${a.getDate()} de ${MESES[a.getMonth()]} empieza por ${pill(c0)}` : '';
+    const dias = patDays();
+    $('#pat-prev').innerHTML = dias.length ? dias.slice(0, 21).map(x => `<span class="pp"><i>${x.dt.getDate()}</i>${pill(x.code)}</span>`).join('') + (dias.length > 21 ? `<span class="muted" style="align-self:center">… y ${dias.length - 21} más</span>` : '') : '<span class="muted">No hay días que rellenar con estas fechas.</span>';
+    $('#pat-apply').textContent = dias.length ? 'Rellenar ' + dias.length + (dias.length === 1 ? ' día' : ' días') : 'Rellenar';
+    $('#pat-apply').disabled = !dias.length;
+  }
+  function applyPattern() {
+    const dias = patDays();
+    dias.forEach(x => setLayer(x.f, 'orig', x.code));
+    const first = dias[0];
+    PAT = null; closeEditor();
+    if (first) { S.month = new Date(first.dt.getFullYear(), first.dt.getMonth(), 1); renderCal(); }
+    toast('Cuadrante rellenado: ' + dias.length + ' días');
+  }
+
   // Guarda un código en una capa; si toca el cuadrante y el real no se había cambiado, el real le sigue.
   function setLayer(f, layer, code, extra) {
     const d = day(f), patch = Object.assign({}, extra || {});
@@ -325,6 +430,12 @@
 
   const ICON_EDIT = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>';
   const ICON_OK = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
+
+  const MODE_HELP = {
+    nada: 'El cambio ya está hecho, pero falta devolverlo: las horas quedan en el saldo con esa compañera.',
+    dia: 'Se compensa con otro día concreto: elige cuál y se actualizan los dos.',
+    dinero: 'Se paga o se cobra: no deja horas de deuda.'
+  };
 
   /* ───────── editor ───────── */
   let ED = null;
@@ -346,11 +457,11 @@
       <div class="row-toggle"><label for="ed-im">Fecha a tener en cuenta<small>Sale en Hoy y en el calendario del iPhone</small></label><input type="checkbox" class="switch" id="ed-im" ${ED.im ? 'checked' : ''}></div>
       <label class="field"><span>Nota</span><textarea id="ed-n" rows="2" placeholder="Ej.: formación, médico, cumpleaños…">${esc(ED.n)}</textarea></label>
       <h3 class="ed-group">Cambio de turno</h3>
-      <div class="row-toggle"><label for="ed-pd">Necesito cambiar este día<small>Queda en la lista de cambios por negociar</small></label><input type="checkbox" class="switch pd" id="ed-pd" ${ED.pd ? 'checked' : ''}></div>
+      <div class="row-toggle"><label for="ed-pd">Necesito cambiar este día<small>Lo apunta en «Por negociar», en la pantalla Cambios</small></label><input type="checkbox" class="switch pd" id="ed-pd" ${ED.pd ? 'checked' : ''}></div>
       <label class="field" id="ed-pm-wrap" ${ED.pd ? '' : 'hidden'}><span>Para qué lo necesitas</span><input id="ed-pm" value="${esc(ED.pm)}" placeholder="Ej.: viaje, boda, médico…" autocomplete="off"></label>
       <label class="field"><span>Cambio con</span><input id="ed-c" list="ed-names" value="${esc(ED.c)}" placeholder="Nombre de la compañera" autocomplete="off"><datalist id="ed-names">${names.map(n => `<option value="${esc(n)}">`).join('')}</datalist></label>
       <div class="field"><span>Cómo se compensa</span><div class="seg wide" role="group" aria-label="Cómo se compensa">
-        <button type="button" data-mode="nada" aria-pressed="${ED.mode === 'nada'}">Pendiente</button><button type="button" data-mode="dia" aria-pressed="${ED.mode === 'dia'}">Otro día</button><button type="button" data-mode="dinero" aria-pressed="${ED.mode === 'dinero'}">Dinero</button></div></div>
+        <button type="button" data-mode="nada" aria-pressed="${ED.mode === 'nada'}">Pendiente</button><button type="button" data-mode="dia" aria-pressed="${ED.mode === 'dia'}">Otro día</button><button type="button" data-mode="dinero" aria-pressed="${ED.mode === 'dinero'}">Dinero</button></div><small class="mode-help" id="ed-mode-help">${MODE_HELP[ED.mode]}</small></div>
       <div id="ed-mode-dia" ${ED.mode === 'dia' ? '' : 'hidden'}>
       <div class="field"><span>Toca el día en este calendario</span><input type="hidden" id="ed-sw" value="${esc(ED.sw)}"><div class="mini" id="ed-mini"></div></div>
       <div class="swbox" id="ed-sw-box" hidden></div></div>
@@ -411,7 +522,8 @@
       <div class="muted" style="font-size:.85rem">Al guardar se actualizan los dos días en el calendario real.</div>`;
   }
   function edCode() { return compose(ED.sel.map(b => ({ base: b, f: ED.fest }))); }
-  function closeEditor() { $('#sheet').classList.remove('on'); $('#scrim').classList.remove('on'); ED = null; }
+  function closeEditor() { PAT = null; closeSheet(); }
+  function closeSheet() { $('#sheet').classList.remove('on'); $('#scrim').classList.remove('on'); ED = null; }
   function saveEditor() {
     ED.n = $('#ed-n').value.trim(); ED.c = $('#ed-c').value.trim(); ED.pm = $('#ed-pm').value.trim();
     const amt = parseFloat(($('#ed-eu').value || '').replace(',', '.'));
@@ -524,7 +636,7 @@
       <button class="chg" data-edit="${x.f}" data-focus="c"><span class="dt">${x.dt.getDate()} ${MESES_C[x.dt.getMonth()]}<small>${DIAS[x.dt.getDay()]}</small></span>
       <span><span class="pills">${pill(real(x.d))}${x.f < today ? '<span class="muted" style="font-size:.8rem">ya pasó</span>' : ''}</span><span class="who">${esc(x.d.pm || 'Sin motivo apuntado')}</span></span>
       <span class="resolve">Resolver</span></button>`).join('') + '</div>'
-      : '<div class="empty-note">No tienes cambios pendientes. Para apuntar uno, abre el día y activa «Necesito cambiar este día».</div>';
+      : '<div class="empty-note">No tienes días por negociar. Para apuntar uno, abre el día y activa «Necesito cambiar este día».</div>';
     if (!list.length) { $('#cam-body').innerHTML = html + `<div class="section"><div class="empty-note">No hay cambios hechos en ${y}: el calendario real coincide con el cuadrante.</div></div>`; return; }
     const cobrado = list.reduce((s, x) => s + (x.d.eu > 0 ? x.d.eu : 0), 0), pagado = list.reduce((s, x) => s + (x.d.eu < 0 ? -x.d.eu : 0), 0);
     if (cobrado || pagado) {
@@ -717,9 +829,16 @@
     if (t.dataset.pick !== undefined && ED) { $('#ed-sw').value = t.dataset.pick; drawSwap(); return; }
     if (t.dataset.mini && ED) { ED.miniM = new Date(ED.miniM.getFullYear(), ED.miniM.getMonth() + Number(t.dataset.mini), 1); drawMini(); return; }
     if (t.dataset.swc !== undefined && ED) { ED.swc = t.dataset.swc; drawSwap(); return; }
+    if (PAT && t.dataset.patadd) { PAT.codes.push(t.dataset.patadd); if (PAT.codes.length === 1) PAT.anchor = parseISO(PAT.desde); drawPattern(); return; }
+    if (PAT && t.dataset.patshift) { PAT.shift += Number(t.dataset.patshift); drawPattern(); return; }
+    if (PAT && t.id === 'pat-del') { PAT.codes.pop(); drawPattern(); return; }
+    if (PAT && t.id === 'pat-clear') { PAT.codes = []; PAT.shift = 0; drawPattern(); return; }
+    if (PAT && t.id === 'pat-apply') { applyPattern(); return; }
+    if (t.id === 'brush-pat') { openPattern(); return; }
     if (t.dataset.mode && ED) {
       ED.mode = t.dataset.mode;
       document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === ED.mode));
+      $('#ed-mode-help').textContent = MODE_HELP[ED.mode];
       $('#ed-mode-dia').hidden = ED.mode !== 'dia'; $('#ed-mode-dinero').hidden = ED.mode !== 'dinero';
       if (ED.mode === 'dinero') $('#ed-eu').focus();
       return;
@@ -757,6 +876,12 @@
     }
   });
   document.addEventListener('change', (e) => {
+    if (PAT) {
+      if (e.target.id === 'pat-from') PAT.desde = e.target.value || PAT.desde;
+      if (e.target.id === 'pat-to') PAT.hasta = e.target.value || PAT.hasta;
+      if (e.target.id === 'pat-over') PAT.over = e.target.checked;
+      drawPattern(); return;
+    }
     if (!ED) return;
     if (e.target.id === 'ed-fest') { ED.fest = e.target.checked; drawCodes(); }
     if (e.target.id === 'ed-fb') ED.fb = e.target.checked;
