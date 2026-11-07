@@ -350,7 +350,7 @@
       <label class="field" id="ed-pm-wrap" ${ED.pd ? '' : 'hidden'}><span>Para qué lo necesitas</span><input id="ed-pm" value="${esc(ED.pm)}" placeholder="Ej.: viaje, boda, médico…" autocomplete="off"></label>
       <label class="field"><span>Cambio con</span><input id="ed-c" list="ed-names" value="${esc(ED.c)}" placeholder="Nombre de la compañera" autocomplete="off"><datalist id="ed-names">${names.map(n => `<option value="${esc(n)}">`).join('')}</datalist></label>
       <div class="field"><span>Cómo se compensa</span><div class="seg wide" role="group" aria-label="Cómo se compensa">
-        <button type="button" data-mode="nada" aria-pressed="${ED.mode === 'nada'}">Aún no</button><button type="button" data-mode="dia" aria-pressed="${ED.mode === 'dia'}">Otro día</button><button type="button" data-mode="dinero" aria-pressed="${ED.mode === 'dinero'}">Dinero</button></div></div>
+        <button type="button" data-mode="nada" aria-pressed="${ED.mode === 'nada'}">Pendiente</button><button type="button" data-mode="dia" aria-pressed="${ED.mode === 'dia'}">Otro día</button><button type="button" data-mode="dinero" aria-pressed="${ED.mode === 'dinero'}">Dinero</button></div></div>
       <div id="ed-mode-dia" ${ED.mode === 'dia' ? '' : 'hidden'}>
       <div class="field"><span>Toca el día en este calendario</span><input type="hidden" id="ed-sw" value="${esc(ED.sw)}"><div class="mini" id="ed-mini"></div></div>
       <div class="swbox" id="ed-sw-box" hidden></div></div>
