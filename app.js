@@ -566,6 +566,7 @@
       const dif = st.hours - jor;
       html += `<div class="meter"><b style="width:${Math.min(100, st.hours / jor * 100)}%"></b></div><div style="font-size:.9rem">Jornada anual ${fmtH(jor)} h · <b class="${dif >= 0 ? 'pos' : 'neg'}">${dif >= 0 ? 'te sobran ' : 'te faltan '}${fmtH(Math.abs(dif))} h</b></div>`;
     }
+    if (st.IL) html += `<div class="tot"><span>Días de baja (IL)</span><b>${st.IL} ${st.IL === 1 ? 'día' : 'días'}</b></div>`;
     html += '</div>';
     // Fibao es un segundo trabajo: sus horas van aparte y no cuentan para la jornada del SAS
     if (st.fb) {
@@ -579,7 +580,7 @@
     html += `<div class="statgrid">${s(st.M, 'mañanas', 'var(--m)')}${s(st.T, 'tardes', 'var(--t)')}${s(st.N, 'noches', 'var(--n)')}
       ${s(st.fest, 'turnos en festivo', 'var(--fest)')}${s(st.dom, 'domingos trabajados', 'var(--fest)')}${s(st.fb, 'mañanas en Fibao', 'var(--fibao)')}
       ${s(st.V + (vac ? '<small style="font-size:.9rem;color:var(--ink-3)"> / ' + vac + '</small>' : ''), 'días de vacaciones', 'var(--v)')}${s(Object.values(st.comp).reduce((a, b) => a + b, 0), 'compensaciones', 'var(--comp)')}${s(st.cambios, 'días cambiados', 'var(--ink-3)')}</div>
-      <p class="muted" style="font-size:.85rem;margin:8px 2px 0">Compensaciones: ${esc(compTxt)}${st.IL ? ' · IL ' + st.IL + ' días' : ''}</p>`;
+      <p class="muted" style="font-size:.85rem;margin:8px 2px 0">Compensaciones: ${esc(compTxt)}</p>`;
     html += `<div class="section"><h3>Horas por mes</h3><div class="card chart">${monthChart(st)}<div class="keyline"><span><i style="background:var(--ink)"></i>Real</span><span><i style="background:var(--line);outline:1px solid var(--ink-3)"></i>Cuadrante</span></div></div></div>`;
     html += `<div class="section"><h3>Horas en el SAS, año a año</h3><div class="card chart">${yearsChart(y)}</div></div>`;
     html += `<div class="section"><h3>Turnos por año</h3><div class="card chart">${turnosChart(y)}</div></div>`;
@@ -617,7 +618,7 @@
       <span class="yl">${r.y}</span>
       <span class="yb"><i style="width:${Math.max(2, r.s.hours / max * 100)}%"></i></span>
       <span class="yh">${fmtH(r.s.hours)} h</span>
-      <span class="ym">${r.s.N} ${r.s.N === 1 ? 'noche' : 'noches'} · ${r.s.fest} ${r.s.fest === 1 ? 'festivo' : 'festivos'} · ${r.s.fb} Fibao${hFbY ? ' (' + fmtH(r.s.fb * hFbY) + ' h)' : ''}</span></div>`).join('') + '</div>';
+      <span class="ym">${r.s.N} ${r.s.N === 1 ? 'noche' : 'noches'} · ${r.s.fest} ${r.s.fest === 1 ? 'festivo' : 'festivos'} · ${r.s.fb} Fibao${hFbY ? ' (' + fmtH(r.s.fb * hFbY) + ' h)' : ''}${r.s.IL ? ' · ' + r.s.IL + (r.s.IL === 1 ? ' día' : ' días') + ' de baja' : ''}</span></div>`).join('') + '</div>';
   }
 
   /* ───────── Cambios ───────── */
