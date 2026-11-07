@@ -309,6 +309,11 @@
     leg.push('<span><b style="color:var(--fest);font-size:.9rem">★</b>Fecha a tener en cuenta</span>');
     if (S.layer === 'real') leg.push('<span><s class="muted" style="font-size:.78rem">M</s>Ya cambiado: tachado, lo que ponía el cuadrante</span>');
     $('#legend').innerHTML = leg.join('');
+    // fechas a tener en cuenta del mes, con su nota
+    const notas = [];
+    for (let dt = new Date(y, m, 1); dt.getMonth() === m; dt = addDays(dt, 1)) { const dd = day(iso(dt)); if (dd.im) notas.push([dt, dd]); }
+    $('#cal-notes').innerHTML = notas.length ? `<div class="cal-notes"><h3>Fechas a tener en cuenta</h3><div class="card" style="padding:2px 16px">` + notas.map(([dt, dd]) =>
+      `<button type="button" class="cn" data-edit="${iso(dt)}"><span class="d">${dt.getDate()}<small>${DIAS[dt.getDay()]}</small></span><span class="t"><span class="star">★</span>${esc(dd.n || 'Sin descripción. Toca para añadirla.')}</span></button>`).join('') + '</div></div>' : '';
     // pincel
     $('#brushbar').hidden = !S.brushOn;
     $('#brush-toggle').innerHTML = S.brushOn ? ICON_OK + 'Listo' : ICON_EDIT + 'Editar';
