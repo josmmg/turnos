@@ -38,6 +38,7 @@
     brush: null, brushOn: false,
     resYear: new Date().getFullYear(),
     camYear: new Date().getFullYear(),
+    camQ: '',
     lastFetch: 0,
     status: 'ok'
   };
@@ -658,8 +659,18 @@
       if (d.pd) pend.push({ f, dt, d });
       if ((d.o && real(d) !== d.o) || d.eu) list.push({ f, dt, d, delta: d.o ? hoursOf(real(d)) - hoursOf(d.o) : 0 });
     }
-    let html = `<h3>Por negociar${pend.length ? ' · ' + pend.length : ''}</h3>`;
-    html += pend.length ? '<div class="card" style="padding:4px 16px">' + pend.map(x => `
+    // buscador por compañera (sin distinguir mayúsculas ni tildes)
+    const norm = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    $('#cam-names').innerHTML = [...new Set(list.map(x => x.d.c).filter(Boolean))].sort().map(n => `<option value="${esc(n)}">`).join('');
+    const q = norm(S.camQ);
+    $('#cam-q-clear').hidden = !q;
+    if (q) {
+      const fl = list.filter(x => x.d.c && norm(x.d.c).includes(q));
+      list.length = 0; fl.forEach(x => list.push(x));
+      if (!list.length) { $('#cam-body').innerHTML = `<div class="empty-note">No hay cambios en ${y} con «${esc(S.camQ)}». Prueba con otro nombre o con otro año.</div>`; return; }
+    }
+    let html = q ? '' : `<h3>Por negociar${pend.length ? ' · ' + pend.length : ''}</h3>`;
+    if (!q) html += pend.length ? '<div class="card" style="padding:4px 16px">' + pend.map(x => `
       <button class="chg" data-edit="${x.f}" data-focus="c"><span class="dt">${x.dt.getDate()} ${MESES_C[x.dt.getMonth()]}<small>${DIAS[x.dt.getDay()]}</small></span>
       <span><span class="pills">${pill(real(x.d))}${x.f < today ? '<span class="muted" style="font-size:.8rem">ya pasó</span>' : ''}</span><span class="who">${esc(x.d.pm || 'Sin motivo apuntado')}</span></span>
       <span class="resolve">Resolver</span></button>`).join('') + '</div>'
@@ -863,6 +874,7 @@
     if (PAT && t.id === 'pat-apply') { applyPattern(); return; }
     if (t.id === 'brush-pat') { openPattern(); return; }
     if (t.id === 'cal-pick') { openMonthPicker(); return; }
+    if (t.id === 'cam-q-clear') { S.camQ = ''; $('#cam-q').value = ''; renderCam(); return; }
     if (MP && t.dataset.mpy) { MP.y += Number(t.dataset.mpy); drawMonthPicker(); return; }
     if (MP && t.dataset.mpm !== undefined) { S.month = new Date(MP.y, Number(t.dataset.mpm), 1); MP = null; closeEditor(); renderCal(); return; }
     if (MP && t.id === 'mp-today') { const n = new Date(); S.month = new Date(n.getFullYear(), n.getMonth(), 1); MP = null; closeEditor(); renderCal(); return; }
@@ -906,6 +918,7 @@
       case 'gate-demo': startDemo(); break;
     }
   });
+  $('#cam-q').addEventListener('input', (e) => { S.camQ = e.target.value; renderCam(); });
   document.addEventListener('change', (e) => {
     if (PAT) {
       if (e.target.id === 'pat-from') PAT.desde = e.target.value || PAT.desde;
