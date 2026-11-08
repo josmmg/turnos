@@ -828,9 +828,11 @@
     for (let dt = new Date(y, 0, 1); dt.getFullYear() === y; dt = addDays(dt, 1)) {
       const f = iso(dt), d = MAP[f];
       if (!d) continue;
-      if (d.pd) pend.push({ f, dt, d });
+      if (d.pd && y !== new Date().getFullYear()) pend.push({ f, dt, d });
       if ((d.o && real(d) !== d.o) || d.eu) list.push({ f, dt, d, delta: d.o ? hoursOf(real(d)) - hoursOf(d.o) : 0 });
     }
+    // año actual: también los días por negociar de los años siguientes (un viaje en enero, por ejemplo)
+    if (y === new Date().getFullYear()) Object.keys(MAP).filter(f => MAP[f].pd && f.slice(0, 4) >= String(y)).sort().forEach(f => pend.push({ f, dt: parseISO(f), d: MAP[f] }));
     // buscador por compañera (sin distinguir mayúsculas ni tildes)
     const norm = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
     $('#cam-names').innerHTML = [...new Set(list.map(x => x.d.c).filter(Boolean))].sort().map(n => `<option value="${esc(n)}">`).join('');
@@ -843,22 +845,20 @@
     }
     let html = q ? '' : `<div class="h3row"><h3>Por negociar${pend.length ? ' · ' + pend.length : ''}</h3><button type="button" class="btn ghost" id="trip-open" style="min-height:38px;padding:0 12px;font-size:.9rem">Planificar un viaje</button></div>`;
     if (!q) html += pend.length ? '<div class="card" style="padding:4px 16px">' + pend.map(x => `
-      <button class="chg" data-edit="${x.f}" data-focus="c"><span class="dt">${x.dt.getDate()} ${MESES_C[x.dt.getMonth()]}<small>${DIAS[x.dt.getDay()]}</small></span>
+      <button class="chg" data-edit="${x.f}" data-focus="c"><span class="dt">${x.dt.getDate()} ${MESES_C[x.dt.getMonth()]}<small>${DIAS[x.dt.getDay()]}${x.dt.getFullYear() !== y ? ' ' + x.dt.getFullYear() : ''}</small></span>
       <span><span class="pills">${pill(real(x.d))}${x.f < today ? '<span class="muted" style="font-size:.8rem">ya pasó</span>' : ''}</span><span class="who">${esc(x.d.pm || 'Sin motivo apuntado')}</span></span>
       <span class="resolve">Resolver</span></button>${x.f >= today ? `<a class="wa" href="https://wa.me/?text=${encodeURIComponent(mensajeCambio(x.f))}" target="_blank" rel="noopener">Pedir el cambio por WhatsApp</a>` : ''}`).join('') + '</div>'
       : '<div class="empty-note">No tienes días por negociar. Para apuntar uno, abre el día y activa «Necesito cambiar este día».</div>';
     if (!q) {
       // viajes del año: cada tramo seguido de días con el mismo nombre de viaje
-      const trips = [];
-      for (let dt = new Date(y, 0, 1); dt.getFullYear() === y; dt = addDays(dt, 1)) {
-        const f = iso(dt), d = MAP[f];
-        if (d && d.vj && day(iso(addDays(dt, -1))).vj !== d.vj) trips.push(tripRun(f));
-      }
-      if (trips.length) html += `<div class="section"><h3>Viajes ${y}</h3><div class="card" style="padding:4px 16px">` + trips.map(run => {
+      // los del año que miras y, si miras el año actual, también los próximos aunque sean del año siguiente
+      const hoyY = new Date().getFullYear(), trips = Object.keys(MAP).filter(f => MAP[f].vj && day(iso(addDays(parseISO(f), -1))).vj !== MAP[f].vj).sort()
+        .map(tripRun).filter(run => run[0].slice(0, 4) == y || (y === hoyY && run[run.length - 1] >= today));
+      if (trips.length) html += `<div class="section"><h3>${y === hoyY ? 'Viajes' : 'Viajes ' + y}</h3><div class="card" style="padding:4px 16px">` + trips.map(run => {
         const a0 = parseISO(run[0]), b0 = parseISO(run[run.length - 1]), ds = run.map(day);
-        const np = ds.filter(d => d.pd).length, nt = ds.filter(d => !d.pd && worked(real(d))).length;
-        const est = np ? `<span class="neg">${np} ${np === 1 ? 'turno' : 'turnos'} por negociar</span>` : nt ? `<span class="neg">Trabajas ${nt} ${nt === 1 ? 'día' : 'días'}</span>` : '<span class="pos">Todo libre</span>';
-        const rango = run.length === 1 ? a0.getDate() + ' ' + MESES_C[a0.getMonth()] : a0.getDate() + (a0.getMonth() !== b0.getMonth() ? ' ' + MESES_C[a0.getMonth()] : '') + '–' + b0.getDate() + ' ' + MESES_C[b0.getMonth()];
+        const sinTurnos = ds.filter(d => !real(d)).length, np = ds.filter(d => d.pd).length, nt = ds.filter(d => !d.pd && worked(real(d))).length;
+        const est = sinTurnos === ds.length ? '<span class="muted">Aún sin cuadrante: los turnos que te toque se marcarán solos</span>' : np ? `<span class="neg">${np} ${np === 1 ? 'turno' : 'turnos'} por negociar</span>` : nt ? `<span class="neg">Trabajas ${nt} ${nt === 1 ? 'día' : 'días'}</span>` : sinTurnos ? `<span class="muted">${sinTurnos} ${sinTurnos === 1 ? 'día' : 'días'} aún sin turno</span>` : '<span class="pos">Todo libre</span>';
+        const rango = (run.length === 1 ? a0.getDate() + ' ' + MESES_C[a0.getMonth()] : a0.getDate() + (a0.getMonth() !== b0.getMonth() ? ' ' + MESES_C[a0.getMonth()] : '') + '–' + b0.getDate() + ' ' + MESES_C[b0.getMonth()]) + (b0.getFullYear() !== y ? ' ' + b0.getFullYear() : '');
         return `<button type="button" class="chg trip-item" data-gotrip="${run[0]}"><span class="dt">${a0.getDate()} ${MESES_C[a0.getMonth()]}<small>${run.length} ${run.length === 1 ? 'día' : 'días'}</small></span>
           <span><span class="who"><span class="tripdot"></span>${esc(ds[0].vj)}</span><span class="muted" style="display:block;font-size:.85rem">${rango} · ${est}</span></span><span class="resolve">Ver</span></button>`;
       }).join('') + '</div></div>';
@@ -958,8 +958,17 @@
       store.set('data', S.data); index(); render(); setStatus();
     }).catch(err => { setStatus(navigator.onLine ? 'err' : 'off'); throw err; });
   }
+  let autoPd = 0, autoPdT = null;
   function save(f, patch) {
-    const d = Object.assign({}, day(f), patch); d.f = f; clean(d);
+    const prev = day(f);
+    let d = Object.assign({}, prev, patch); d.f = f; clean(d);
+    // día de un viaje que pasa de libre (o sin turno) a trabajado: va solo a «Por negociar»
+    if (d.vj && !d.c && !prev.pd && ('r' in patch || 'o' in patch) && !worked(real(prev)) && worked(real(d))) {
+      patch = Object.assign({}, patch, { pd: 1, pm: d.pm || d.vj });
+      d = Object.assign({}, prev, patch); d.f = f; clean(d);
+      autoPd++; clearTimeout(autoPdT);
+      autoPdT = setTimeout(() => { toast(autoPd === 1 ? 'Ese turno cae en tu viaje: está en «Por negociar»' : autoPd + ' turnos caen en tu viaje: están en «Por negociar»'); autoPd = 0; }, 400);
+    }
     MAP[f] = d;
     // en la cola solo van los campos que han cambiado, para no pisar lo que Jose edite en la hoja
     const norm = {};
