@@ -892,6 +892,8 @@
   }
 
   /* ───────── Ajustes ───────── */
+  // debe coincidir con VERSION de sw.js (turnos-vNN)
+  const APP_VERSION = '13';
   function renderAj() {
     const c = cfg();
     const f = (k, label, ph, type = 'text') => `<label class="field"><span>${label}</span><input data-cfg="${k}" value="${esc(c[k] || '')}" placeholder="${ph}" inputmode="${type === 'num' ? 'decimal' : 'text'}"></label>`;
@@ -917,7 +919,7 @@
         <table class="codes-table">${Object.values(CODES).map(x => `<tr><td>${pill(x.codigo)}</td><td>${esc(x.nombre)}</td><td style="text-align:right">${fmtH(x.horas)} h</td></tr>`).join('')}</table></div>
       <div class="section"><button class="btn ghost wide" id="aj-refresh">Actualizar desde la hoja</button></div>
       <div class="section"><button class="btn danger wide" id="aj-out">${S.demo ? 'Salir del ejemplo' : 'Desconectar este iPhone'}</button></div>
-      <p class="muted" style="text-align:center;font-size:.8rem;margin-top:18px">Turnos · versión 1.0${S.demo ? ' · datos de ejemplo' : ''}</p>`;
+      <p class="muted" style="text-align:center;font-size:.8rem;margin-top:18px">Turnos · versión ${APP_VERSION}${S.demo ? ' · datos de ejemplo' : ''}</p>`;
   }
   function saveAj() {
     const v = {};
