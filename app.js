@@ -446,12 +446,12 @@
         if (!test(d)) continue;
         let fin = dt; while (test(day(iso(addDays(fin, 1))))) fin = addDays(fin, 1);
         const n = dayN(dt), hasta = fin.getDate() + ' ' + MESES_C[fin.getMonth()];
-        out.push(`<div class="fact count ${label === 'Viaje' ? 'f-viaje' : 'f-vac'}"><div class="k">${label}</div><div class="v">${n === 0 ? 'Ya estás' : n === 1 ? 'Mañana' : n + ' días'}</div><div class="s">${[esc(nombre(d)), n === 0 ? 'hasta el ' + hasta : dt.getDate() + ' ' + MESES_C[dt.getMonth()] + (fin > dt ? '–' + hasta : '')].filter(Boolean).join(' · ')}</div></div>`);
+        out.push(`<div class="fact count ${label === 'Próximo viaje' ? 'f-viaje' : 'f-vac'}"><div class="k">${label}</div><div class="v">${n === 0 ? 'Ya estás' : n === 1 ? 'Falta 1 día' : 'Faltan ' + n + ' días'}</div><div class="s">${[esc(nombre(d)), n === 0 ? 'hasta el ' + hasta : dt.getDate() + ' ' + MESES_C[dt.getMonth()] + (fin > dt ? '–' + hasta : '')].filter(Boolean).join(' · ')}</div></div>`);
         return;
       }
     };
-    bloque(isV, 'Vacaciones', () => '');
-    bloque(d => !!d.vj, 'Viaje', d => d.vj);
+    bloque(isV, 'Próximas vacaciones', () => '');
+    bloque(d => !!d.vj, 'Próximo viaje', d => d.vj);
     return out.join('');
   }
 
@@ -1146,7 +1146,7 @@
 
   /* ───────── Ajustes ───────── */
   // debe coincidir con VERSION de sw.js (turnos-vNN)
-  const APP_VERSION = '22';
+  const APP_VERSION = '23';
   function renderAj() {
     const c = cfg();
     const f = (k, label, ph, type = 'text') => `<label class="field"><span>${label}</span><input data-cfg="${k}" value="${esc(c[k] || '')}" placeholder="${ph}" inputmode="${type === 'num' ? 'decimal' : 'text'}"></label>`;
