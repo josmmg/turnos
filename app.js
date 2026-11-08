@@ -365,13 +365,56 @@
     return out.slice(0, max).sort((a, b) => a - b);
   }
   const diaTxt = (dt, ref) => DIAS[dt.getDay()] + ' ' + dt.getDate() + (!ref || dt.getMonth() !== ref.getMonth() ? ' de ' + MESES[dt.getMonth()] : '');
-  function mensajeCambio(f) {
-    const d = day(f), dt = parseISO(f), c = real(d);
+  /* ───────── pedir el cambio por WhatsApp ───────── */
+  let WA = null;
+  function mensajeCambio() {
+    const d = day(WA.f), dt = parseISO(WA.f), c = real(d);
     const turno = parts(c).filter(p => isWorkBase(p.base)).map(p => shortName(p.base).toLowerCase()).join(' y ') || 'turno';
-    const lib = libresCerca(f, 4);
-    let t = '¡Hola! ¿Me podrías cambiar la ' + turno + ' del ' + diaTxt(dt) + '?';
-    if (lib.length) t += ' Yo te puedo hacer un turno el ' + lib.map(x => diaTxt(x, dt)).join(', ').replace(/, ([^,]*)$/, ' o $1') + ', que los tengo libres.';
+    let t = '¡Hola! ¿Me podrías hacer la ' + turno + ' del ' + diaTxt(dt) + '?';
+    if (WA.mode === 'dev') {
+      const ds = WA.days.slice().sort().map(parseISO);
+      t += ds.length ? ' A cambio te hago yo un turno ' + (ds.length === 1 ? 'el ' : 'el día que prefieras: ') + ds.map(x => diaTxt(x, dt)).join(', ').replace(/, ([^,]*)$/, ' o $1') + '.' : ' A cambio te hago yo un turno el día que te venga bien.';
+    } else if (WA.mode === 'pago') {
+      const e = parseFloat(String(WA.eur).replace(',', '.'));
+      t += isFinite(e) && e > 0 ? ' Te lo pagaría: ' + fmtE(e) + '.' : ' Te lo pagaría, dime cuánto.';
+    } else t += ' Lo de la devolución lo hablamos, como mejor te venga.';
     return t + ' ¡Gracias!';
+  }
+  function openWA(f) {
+    PAT = null; MP = null; ED = null; TRIP = null; FIND = null;
+    WA = { f, mode: 'dev', days: [], eur: '', m: new Date(parseISO(f).getFullYear(), parseISO(f).getMonth(), 1), edited: false };
+    const dt = parseISO(f);
+    $('#sheet').innerHTML = `<div class="grab"></div><h2>Pedir el cambio</h2>
+      <p style="margin:6px 0 0">${fechaLarga(dt)} ${pill(real(day(f)))}</p>
+      <div class="field"><span>Cómo se lo devuelves</span><div class="seg wide" role="group" aria-label="Cómo se lo devuelves">
+        <button type="button" data-wmode="dev" aria-pressed="true">Con devolución</button><button type="button" data-wmode="pago" aria-pressed="false">Sin devolución</button><button type="button" data-wmode="conv" aria-pressed="false">A convenir</button></div>
+        <small class="muted" id="wa-help" style="display:block;margin-top:6px"></small></div>
+      <div class="field" id="wa-dev"><span>Días que le ofreces (toca uno o varios)</span><div class="mini" id="wa-mini"></div></div>
+      <label class="field" id="wa-pago" hidden><span>Cuánto le pagas (opcional)</span><input id="wa-eur" inputmode="decimal" placeholder="Ej.: 60" autocomplete="off"></label>
+      <label class="field"><span>Mensaje (puedes cambiarlo)</span><textarea id="wa-txt" rows="4"></textarea></label>
+      <div class="actions"><button type="button" class="btn ghost" id="ed-back">Volver</button><a class="btn" id="wa-go" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none">Abrir WhatsApp</a></div>`;
+    drawWA();
+    $('#sheet').classList.add('on'); $('#scrim').classList.add('on');
+  }
+  function drawWA() {
+    const help = { dev: 'Le haces tú otro turno a cambio.', pago: 'Le pagas el turno y no le debes nada.', conv: 'Ya lo hablaréis.' };
+    document.querySelectorAll('[data-wmode]').forEach(b => b.setAttribute('aria-pressed', b.dataset.wmode === WA.mode));
+    $('#wa-help').textContent = help[WA.mode];
+    $('#wa-dev').hidden = WA.mode !== 'dev'; $('#wa-pago').hidden = WA.mode !== 'pago';
+    if (WA.mode === 'dev') {
+      const m0 = WA.m, y = m0.getFullYear(), m = m0.getMonth();
+      let html = `<div class="mini-head"><button type="button" class="icon-btn" data-wmini="-1" aria-label="Mes anterior">‹</button><b>${cap(MESES[m])} ${y}</b><button type="button" class="icon-btn" data-wmini="1" aria-label="Mes siguiente">›</button></div><div class="mini-grid">`;
+      html += ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(x => `<span class="mini-wd">${x}</span>`).join('');
+      for (let i = 0; i < (m0.getDay() + 6) % 7; i++) html += '<span></span>';
+      for (let dt = new Date(y, m, 1); dt.getMonth() === m; dt = addDays(dt, 1)) {
+        const f = iso(dt), d = day(f), c = real(d), self = f === WA.f;
+        html += `<button type="button" class="mini-d${WA.days.includes(f) ? ' sel' : ''}${self ? ' self' : ''}${d.pd ? ' pendday' : ''}${d.vj ? ' tripday' : ''}${isSunOrFest(f) ? ' fest' : ''}" ${self ? 'disabled' : `data-wpick="${f}"`} aria-pressed="${WA.days.includes(f)}" aria-label="${fechaLarga(dt)}: ${esc(c || 'sin turno')}">
+          <i>${dt.getDate()}</i><b style="${c ? 'background:' + bg(c) : ''}">${esc(c) || '·'}</b></button>`;
+      }
+      $('#wa-mini').innerHTML = html + '</div>' + (WA.days.length ? `<p class="muted" style="margin:6px 4px 0;font-size:.85rem">Elegidos: ${WA.days.slice().sort().map(f => diaTxt(parseISO(f), parseISO(WA.f))).join(', ')}</p>` : '');
+    }
+    if (!WA.edited) $('#wa-txt').value = mensajeCambio();
+    $('#wa-go').href = 'https://wa.me/?text=' + encodeURIComponent($('#wa-txt').value);
   }
 
   /* ───────── planificar un viaje ───────── */
@@ -682,7 +725,7 @@
     const prev = ED.prevF || {}, any = Object.values(prev).some(Boolean);
     return compose(ED.sel.map(b => ({ base: b, f: ED.fest && (b in prev ? (any ? prev[b] : true) : (!any || isSunOrFest(ED.f))) })));
   }
-  function closeEditor() { PAT = null; MP = null; TRIP = null; FIND = null; closeSheet(); }
+  function closeEditor() { PAT = null; MP = null; TRIP = null; FIND = null; WA = null; closeSheet(); }
   function closeSheet() { $('#sheet').classList.remove('on'); $('#scrim').classList.remove('on'); ED = null; if (S.reloadPending) setTimeout(S.reloadPending, 300); }
   // Guardar siempre cierra la ventana; si algo falla, se avisa en vez de quedarse abierta
   function saveEditor() {
@@ -847,7 +890,7 @@
     if (!q) html += pend.length ? '<div class="card" style="padding:4px 16px">' + pend.map(x => `
       <button class="chg" data-edit="${x.f}" data-focus="c"><span class="dt">${x.dt.getDate()} ${MESES_C[x.dt.getMonth()]}<small>${DIAS[x.dt.getDay()]}${x.dt.getFullYear() !== y ? ' ' + x.dt.getFullYear() : ''}</small></span>
       <span><span class="pills">${pill(real(x.d))}${x.f < today ? '<span class="muted" style="font-size:.8rem">ya pasó</span>' : ''}</span><span class="who">${esc(x.d.pm || 'Sin motivo apuntado')}</span></span>
-      <span class="resolve">Resolver</span></button>${x.f >= today ? `<a class="wa" href="https://wa.me/?text=${encodeURIComponent(mensajeCambio(x.f))}" target="_blank" rel="noopener">Pedir el cambio por WhatsApp</a>` : ''}`).join('') + '</div>'
+      <span class="resolve">Resolver</span></button>${x.f >= today ? `<button type="button" class="wa" data-wa="${x.f}">Pedir el cambio por WhatsApp</button>` : ''}`).join('') + '</div>'
       : '<div class="empty-note">No tienes días por negociar. Para apuntar uno, abre el día y activa «Necesito cambiar este día».</div>';
     if (!q) {
       // viajes del año: cada tramo seguido de días con el mismo nombre de viaje
@@ -893,7 +936,7 @@
 
   /* ───────── Ajustes ───────── */
   // debe coincidir con VERSION de sw.js (turnos-vNN)
-  const APP_VERSION = '13';
+  const APP_VERSION = '14';
   function renderAj() {
     const c = cfg();
     const f = (k, label, ph, type = 'text') => `<label class="field"><span>${label}</span><input data-cfg="${k}" value="${esc(c[k] || '')}" placeholder="${ph}" inputmode="${type === 'num' ? 'decimal' : 'text'}"></label>`;
@@ -1077,6 +1120,10 @@
     if (t.dataset.quickc && ED) { $('#ed-c').value = t.dataset.quickc; return; }
     if (t.id === 'cal-pick') { openMonthPicker(); return; }
     if (t.id === 'trip-open') { openTrip(); return; }
+    if (t.dataset.wa) { openWA(t.dataset.wa); return; }
+    if (WA && t.dataset.wmode) { WA.mode = t.dataset.wmode; drawWA(); return; }
+    if (WA && t.dataset.wmini) { WA.m = new Date(WA.m.getFullYear(), WA.m.getMonth() + Number(t.dataset.wmini), 1); drawWA(); return; }
+    if (WA && t.dataset.wpick) { const f = t.dataset.wpick, i = WA.days.indexOf(f); if (i >= 0) WA.days.splice(i, 1); else WA.days.push(f); drawWA(); return; }
     if (t.dataset.gotrip) { const dt = parseISO(t.dataset.gotrip); show('cal'); S.month = new Date(dt.getFullYear(), dt.getMonth(), 1); renderCal(); return; }
     if (t.dataset.tripdel) { if (t.dataset.sure) deleteTrip(t.dataset.tripdel); else { t.dataset.sure = '1'; t.textContent = '¿Seguro? Toca otra vez para borrarlo'; } return; }
     if (TRIP && t.id === 'trip-apply') { applyTrip(); return; }
@@ -1121,7 +1168,7 @@
       case 'aj-refresh': load(true).then(() => toast('Datos actualizados')).catch(() => toast('No se ha podido conectar con la hoja')); break;
       case 'aj-out': if (confirmOut()) logout(); break;
       case 'ed-save': saveEditor(); break;
-      case 'ed-clear': ED.sel = []; ED.fb = false; ED.im = false; ED.pd = false; ['#ed-fb', '#ed-im', '#ed-pd'].forEach(s => { $(s).checked = false; }); ['#ed-n', '#ed-c', '#ed-pm', '#ed-eu', '#ed-sw'].forEach(s => { $(s).value = ''; }); $('#ed-pm-wrap').hidden = true; drawSwap(); drawCodes(); break;
+      case 'ed-clear': ED.sel = []; ED.fb = false; ED.im = false; ED.pd = false; ['#ed-fb', '#ed-im', '#ed-pd'].forEach(s => { $(s).checked = false; }); ['#ed-n', '#ed-c', '#ed-pm', '#ed-eu', '#ed-sw'].forEach(s => { $(s).value = ''; }); $('#ed-pm-wrap').hidden = true; drawSwap(); drawCodes(); toast('Día vaciado. Pulsa Guardar para que quede así'); break;
       case 'ed-back': closeEditor(); break;
       case 'gate-go': login(); break;
       case 'gate-demo': startDemo(); break;
@@ -1130,6 +1177,8 @@
   $('#cam-q').addEventListener('input', (e) => { S.camQ = e.target.value; renderCam(); });
   document.addEventListener('input', (e) => {
     if (FIND && e.target.id === 'find-q') { FIND.q = e.target.value; drawFind(); }
+    if (WA && e.target.id === 'wa-eur') { WA.eur = e.target.value; drawWA(); }
+    if (WA && e.target.id === 'wa-txt') { WA.edited = true; $('#wa-go').href = 'https://wa.me/?text=' + encodeURIComponent(e.target.value); }
   });
   document.addEventListener('change', (e) => {
     if (TRIP) {
