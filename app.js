@@ -60,7 +60,8 @@
   // «La casa»: el hospital o la supervisora, para cambios impuestos y formaciones
   const CASA = 'La casa';
   const isCasa = (c) => String(c || '').trim().toLowerCase() === 'la casa';
-  const ICON_CASA = '<svg class="ic-casa" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V8l8-5 8 5v13z"/><path d="M12 8v6M9 11h6" stroke-linecap="round"/><path d="M10 21v-4h4v4"/></svg>';
+  // la casa = el hospital: señal de hospital (H blanca sobre cuadrado), que se distingue a cualquier tamaño
+  const ICON_CASA = '<svg class="ic-casa" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="5" fill="currentColor"/><path d="M8.5 7.5v9M15.5 7.5v9M8.5 12h7" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg>';
   // Horas de un código; con la fecha, corrige el cambio de hora: la noche del cambio de octubre dura 1 h más y la de marzo 1 h menos
   const hoursOf = (code, f) => parts(code).reduce((s, p) => s + (Number(info(p.base).horas) || 0) + (f ? dstAdj(p.base, f) : 0), 0);
   function dstAdj(base, f) {
@@ -1145,7 +1146,7 @@
 
   /* ───────── Ajustes ───────── */
   // debe coincidir con VERSION de sw.js (turnos-vNN)
-  const APP_VERSION = '21';
+  const APP_VERSION = '22';
   function renderAj() {
     const c = cfg();
     const f = (k, label, ph, type = 'text') => `<label class="field"><span>${label}</span><input data-cfg="${k}" value="${esc(c[k] || '')}" placeholder="${ph}" inputmode="${type === 'num' ? 'decimal' : 'text'}"></label>`;
