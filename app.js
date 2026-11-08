@@ -65,7 +65,8 @@
   const CASA = 'La casa';
   const isCasa = (c) => String(c || '').trim().toLowerCase() === 'la casa';
   // la casa = el hospital: señal de hospital (H blanca sobre cuadrado), que se distingue a cualquier tamaño
-  const ICON_CASA = '<svg class="ic-casa" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="5" fill="currentColor"/><path d="M8.5 7.5v9M15.5 7.5v9M8.5 12h7" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg>';
+  // la casa = el hospital: edificio con alas, ventanas y la cruz sanitaria, sobre una placa rosa
+  const ICON_CASA = '<span class="ic-casa" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 32 32" stroke-linejoin="round" stroke-linecap="round"><path class="b" stroke-width="1.8" d="M3 29V15.5a1 1 0 0 1 1-1h4.5V29M23.5 14.5H28a1 1 0 0 1 1 1V29"/><rect class="b" stroke-width="1.8" x="8.5" y="9" width="15" height="20" rx="1.5"/><rect class="w" x="11" y="16" width="3" height="3" rx=".6"/><rect class="w" x="18" y="16" width="3" height="3" rx=".6"/><rect class="w" x="11" y="21" width="3" height="3" rx=".6"/><rect class="w" x="18" y="21" width="3" height="3" rx=".6"/><rect class="w" x="4.8" y="18" width="2" height="2.4" rx=".5"/><rect class="w" x="4.8" y="22.5" width="2" height="2.4" rx=".5"/><rect class="w" x="25.2" y="18" width="2" height="2.4" rx=".5"/><rect class="w" x="25.2" y="22.5" width="2" height="2.4" rx=".5"/><path class="b" stroke-width="1.6" d="M14 29v-3.6h4V29"/><path fill="none" stroke="currentColor" stroke-width="1.8" d="M1.5 29h29"/><circle class="k" cx="16" cy="8" r="6"/><path fill="none" stroke="#fff" stroke-width="2.4" d="M16 5v6M13 8h6"/></svg></span>';
   // Horas de un código; con la fecha, corrige el cambio de hora: la noche del cambio de octubre dura 1 h más y la de marzo 1 h menos
   const hoursOf = (code, f) => parts(code).reduce((s, p) => s + (Number(info(p.base).horas) || 0) + (f ? dstAdj(p.base, f) : 0), 0);
   function dstAdj(base, f) {
@@ -1150,7 +1151,7 @@
 
   /* ───────── Ajustes ───────── */
   // debe coincidir con VERSION de sw.js (turnos-vNN)
-  const APP_VERSION = '24';
+  const APP_VERSION = '25';
   function renderAj() {
     const c = cfg();
     const f = (k, label, ph, type = 'text') => `<label class="field"><span>${label}</span><input data-cfg="${k}" value="${esc(c[k] || '')}" placeholder="${ph}" inputmode="${type === 'num' ? 'decimal' : 'text'}"></label>`;

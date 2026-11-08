@@ -187,8 +187,17 @@ table.comp tfoot td{font-weight:800;border-top:2px solid var(--ink-3)}
 .quick{display:flex;align-items:center;gap:10px;margin-top:8px}
 .quick button{flex:0 0 auto;padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--bg);font-weight:700;font-size:.9rem}
 .quick button{display:inline-flex;align-items:center;gap:6px}
-.ic-casa{flex:0 0 auto;color:#D6336C;vertical-align:-3px;margin-right:6px}
-.quick .ic-casa{margin-right:0}
+.ic-casa{--casa:#D6336C;flex:0 0 auto;display:inline-grid;place-items:center;width:36px;height:36px;border-radius:11px;color:var(--ink);background:color-mix(in srgb,var(--casa) 14%,var(--surface));border:1px solid color-mix(in srgb,var(--casa) 35%,transparent);vertical-align:middle;margin-right:10px}
+.ic-casa svg{display:block}
+.ic-casa .b{fill:var(--surface);stroke:currentColor}
+.ic-casa .w{fill:color-mix(in srgb,var(--casa) 55%,var(--surface))}
+.ic-casa .k{fill:var(--casa)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .ic-casa{--casa:#F06595}}
+:root[data-theme="dark"] .ic-casa{--casa:#F06595}
+.saldo.casa .who{display:inline-grid;grid-template-columns:auto 1fr;align-items:center}
+.saldo.casa .who:has(small) .ic-casa{grid-row:span 2}
+.quick .ic-casa{width:30px;height:30px;border-radius:9px;margin-right:0}
+.quick .ic-casa svg{width:22px;height:22px}
 .quick small{font-size:.78rem;color:var(--ink-3);line-height:1.3}
 .saldo.casa .who small{display:block;font-weight:400;font-size:.78rem;color:var(--ink-3)}
 .desg{display:grid;margin-top:6px}
