@@ -847,6 +847,22 @@
       <span><span class="pills">${pill(real(x.d))}${x.f < today ? '<span class="muted" style="font-size:.8rem">ya pasó</span>' : ''}</span><span class="who">${esc(x.d.pm || 'Sin motivo apuntado')}</span></span>
       <span class="resolve">Resolver</span></button>${x.f >= today ? `<a class="wa" href="https://wa.me/?text=${encodeURIComponent(mensajeCambio(x.f))}" target="_blank" rel="noopener">Pedir el cambio por WhatsApp</a>` : ''}`).join('') + '</div>'
       : '<div class="empty-note">No tienes días por negociar. Para apuntar uno, abre el día y activa «Necesito cambiar este día».</div>';
+    if (!q) {
+      // viajes del año: cada tramo seguido de días con el mismo nombre de viaje
+      const trips = [];
+      for (let dt = new Date(y, 0, 1); dt.getFullYear() === y; dt = addDays(dt, 1)) {
+        const f = iso(dt), d = MAP[f];
+        if (d && d.vj && day(iso(addDays(dt, -1))).vj !== d.vj) trips.push(tripRun(f));
+      }
+      if (trips.length) html += `<div class="section"><h3>Viajes ${y}</h3><div class="card" style="padding:4px 16px">` + trips.map(run => {
+        const a0 = parseISO(run[0]), b0 = parseISO(run[run.length - 1]), ds = run.map(day);
+        const np = ds.filter(d => d.pd).length, nt = ds.filter(d => !d.pd && worked(real(d))).length;
+        const est = np ? `<span class="neg">${np} ${np === 1 ? 'turno' : 'turnos'} por negociar</span>` : nt ? `<span class="neg">Trabajas ${nt} ${nt === 1 ? 'día' : 'días'}</span>` : '<span class="pos">Todo libre</span>';
+        const rango = run.length === 1 ? a0.getDate() + ' ' + MESES_C[a0.getMonth()] : a0.getDate() + (a0.getMonth() !== b0.getMonth() ? ' ' + MESES_C[a0.getMonth()] : '') + '–' + b0.getDate() + ' ' + MESES_C[b0.getMonth()];
+        return `<button type="button" class="chg trip-item" data-gotrip="${run[0]}"><span class="dt">${a0.getDate()} ${MESES_C[a0.getMonth()]}<small>${run.length} ${run.length === 1 ? 'día' : 'días'}</small></span>
+          <span><span class="who"><span class="tripdot"></span>${esc(ds[0].vj)}</span><span class="muted" style="display:block;font-size:.85rem">${rango} · ${est}</span></span><span class="resolve">Ver</span></button>`;
+      }).join('') + '</div></div>';
+    }
     if (!list.length) { $('#cam-body').innerHTML = html + `<div class="section"><div class="empty-note">No hay cambios hechos en ${y}: el calendario real coincide con el cuadrante.</div></div>`; return; }
     const cobrado = list.reduce((s, x) => s + (x.d.eu > 0 ? x.d.eu : 0), 0), pagado = list.reduce((s, x) => s + (x.d.eu < 0 ? -x.d.eu : 0), 0);
     if (cobrado || pagado) {
@@ -1050,6 +1066,7 @@
     if (t.dataset.quickc && ED) { $('#ed-c').value = t.dataset.quickc; return; }
     if (t.id === 'cal-pick') { openMonthPicker(); return; }
     if (t.id === 'trip-open') { openTrip(); return; }
+    if (t.dataset.gotrip) { const dt = parseISO(t.dataset.gotrip); show('cal'); S.month = new Date(dt.getFullYear(), dt.getMonth(), 1); renderCal(); return; }
     if (t.dataset.tripdel) { if (t.dataset.sure) deleteTrip(t.dataset.tripdel); else { t.dataset.sure = '1'; t.textContent = '¿Seguro? Toca otra vez para borrarlo'; } return; }
     if (TRIP && t.id === 'trip-apply') { applyTrip(); return; }
     if (t.id === 'cal-find') { openFind(); return; }
