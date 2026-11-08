@@ -239,15 +239,15 @@
     const dayN = (dt) => Math.round((new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5);
     const inDays = (dt, hoy = 'hoy') => { const n = dayN(dt); return n === 0 ? hoy : n === 1 ? 'mañana' : 'en ' + n + ' días'; };
     const diaCorto = (dt) => dayN(dt) === 0 ? 'Hoy' : cap(DIAS[dt.getDay()]) + ' ' + dt.getDate();
-    const fact = (k, v, s) => `<div class="fact"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s || ''}</div></div>`;
+    const fact = (k, v, s, cls = '') => `<div class="fact${cls ? ' ' + cls : ''}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s || ''}</div></div>`;
     const sal = saldos();
     $('#hoy-debe').innerHTML = sal.length ? `<h3>Horas pendientes de devolver</h3><button type="button" class="card debe" data-s="cam">` + sal.slice(0, 5).map(([n, h]) =>
       `<span class="saldo${isCasa(n) ? ' casa' : ''}"><span class="who">${isCasa(n) ? ICON_CASA : ''}${esc(n)}</span><span class="h ${h > 0 ? 'pos' : 'neg'}">${h > 0 ? 'te debe ' : 'le debes '}${fmtH(Math.abs(h))} h</span></span>`).join('') + '</button>' : '';
     $('#facts').innerHTML =
-      fact('Próxima noche', nN ? diaCorto(nN) : '—', nN ? inDays(nN, 'esta noche') : 'sin noches a la vista') +
-      fact('Próximo día libre', nL ? cap(DIAS[nL.getDay()]) + ' ' + nL.getDate() : '—', nL ? inDays(nL) : '') +
+      fact('Próxima noche', nN ? diaCorto(nN) : '—', nN ? inDays(nN, 'esta noche') : 'sin noches a la vista', 'f-noche') +
+      fact('Próximo día libre SAS', nL ? cap(DIAS[nL.getDay()]) + ' ' + nL.getDate() : '—', nL ? inDays(nL) : '', 'f-libre') +
       fact('Esta semana', fmtH(wkH) + ' h', 'de lunes a domingo') +
-      fact('Próximo Fibao', nFb ? diaCorto(nFb) : '—', nFb ? inDays(nFb) : 'sin mañanas apuntadas') + cuentaAtras(now, dayN);
+      fact('Próximo Fibao', nFb ? diaCorto(nFb) : '—', nFb ? inDays(nFb) : 'sin mañanas apuntadas', 'f-fibao') + cuentaAtras(now, dayN);
 
     // año
     const st = stats(now.getFullYear());
@@ -445,11 +445,11 @@
         if (!test(d)) continue;
         let fin = dt; while (test(day(iso(addDays(fin, 1))))) fin = addDays(fin, 1);
         const n = dayN(dt), hasta = fin.getDate() + ' ' + MESES_C[fin.getMonth()];
-        out.push(`<div class="fact count"><div class="k">${label}</div><div class="v">${n === 0 ? 'Ya estás' : n === 1 ? 'Mañana' : n + ' días'}</div><div class="s">${esc(nombre(d))}${n === 0 ? ' · hasta el ' + hasta : ' · ' + dt.getDate() + ' ' + MESES_C[dt.getMonth()] + (fin > dt ? '–' + hasta : '')}</div></div>`);
+        out.push(`<div class="fact count ${label === 'Viaje' ? 'f-viaje' : 'f-vac'}"><div class="k">${label}</div><div class="v">${n === 0 ? 'Ya estás' : n === 1 ? 'Mañana' : n + ' días'}</div><div class="s">${[esc(nombre(d)), n === 0 ? 'hasta el ' + hasta : dt.getDate() + ' ' + MESES_C[dt.getMonth()] + (fin > dt ? '–' + hasta : '')].filter(Boolean).join(' · ')}</div></div>`);
         return;
       }
     };
-    bloque(isV, 'Vacaciones', () => 'Vacaciones');
+    bloque(isV, 'Vacaciones', () => '');
     bloque(d => !!d.vj, 'Viaje', d => d.vj);
     return out.join('');
   }
@@ -1145,7 +1145,7 @@
 
   /* ───────── Ajustes ───────── */
   // debe coincidir con VERSION de sw.js (turnos-vNN)
-  const APP_VERSION = '20';
+  const APP_VERSION = '21';
   function renderAj() {
     const c = cfg();
     const f = (k, label, ph, type = 'text') => `<label class="field"><span>${label}</span><input data-cfg="${k}" value="${esc(c[k] || '')}" placeholder="${ph}" inputmode="${type === 'num' ? 'decimal' : 'text'}"></label>`;
