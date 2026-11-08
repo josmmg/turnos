@@ -64,7 +64,7 @@
   // «La casa»: el hospital o la supervisora, para cambios impuestos y formaciones
   const CASA = 'La casa';
   const isCasa = (c) => String(c || '').trim().toLowerCase() === 'la casa';
-  // la casa = el hospital: señal de hospital (H blanca sobre cuadrado), que se distingue a cualquier tamaño
+  const dispName = (n) => isCasa(n) ? 'La Casa' : n;
   // la casa = el hospital: edificio con alas, ventanas y la cruz sanitaria, sobre una placa rosa
   const ICON_CASA = '<span class="ic-casa" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 32 32" stroke-linejoin="round" stroke-linecap="round"><path class="b" stroke-width="1.8" d="M3 29V15.5a1 1 0 0 1 1-1h4.5V29M23.5 14.5H28a1 1 0 0 1 1 1V29"/><rect class="b" stroke-width="1.8" x="8.5" y="9" width="15" height="20" rx="1.5"/><rect class="w" x="11" y="16" width="3" height="3" rx=".6"/><rect class="w" x="18" y="16" width="3" height="3" rx=".6"/><rect class="w" x="11" y="21" width="3" height="3" rx=".6"/><rect class="w" x="18" y="21" width="3" height="3" rx=".6"/><rect class="w" x="4.8" y="18" width="2" height="2.4" rx=".5"/><rect class="w" x="4.8" y="22.5" width="2" height="2.4" rx=".5"/><rect class="w" x="25.2" y="18" width="2" height="2.4" rx=".5"/><rect class="w" x="25.2" y="22.5" width="2" height="2.4" rx=".5"/><path class="b" stroke-width="1.6" d="M14 29v-3.6h4V29"/><path fill="none" stroke="currentColor" stroke-width="1.8" d="M1.5 29h29"/><circle class="k" cx="16" cy="8" r="6"/><path fill="none" stroke="#fff" stroke-width="2.4" d="M16 5v6M13 8h6"/></svg></span>';
   // Horas de un código; con la fecha, corrige el cambio de hora: la noche del cambio de octubre dura 1 h más y la de marzo 1 h menos
@@ -248,7 +248,7 @@
     const fact = (k, v, s, cls = '') => `<div class="fact${cls ? ' ' + cls : ''}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s || ''}</div></div>`;
     const sal = saldos();
     $('#hoy-debe').innerHTML = sal.length ? `<h3>Horas pendientes de devolver</h3><button type="button" class="card debe" data-s="cam">` + sal.slice(0, 5).map(([n, h]) =>
-      `<span class="saldo${isCasa(n) ? ' casa' : ''}"><span class="who">${isCasa(n) ? ICON_CASA : ''}${esc(n)}</span><span class="h ${h > 0 ? 'pos' : 'neg'}">${h > 0 ? 'te debe ' : 'le debes '}${fmtH(Math.abs(h))} h</span></span>`).join('') + '</button>' : '';
+      `<span class="saldo${isCasa(n) ? ' casa' : ''}"><span class="who"><span class="nm">${esc(dispName(n))}${isCasa(n) ? ICON_CASA : ''}</span></span><span class="h ${h > 0 ? 'pos' : 'neg'}">${h > 0 ? 'te debe ' : 'le debes '}${fmtH(Math.abs(h))} h</span></span>`).join('') + '</button>' : '';
     $('#facts').innerHTML =
       fact('Próxima noche', nN ? diaCorto(nN) : '—', nN ? inDays(nN, 'esta noche') : 'sin noches a la vista', 'f-noche') +
       fact('Próximo día libre SAS', nL ? cap(DIAS[nL.getDay()]) + ' ' + nL.getDate() : '—', nL ? inDays(nL) : '', 'f-libre') +
@@ -279,7 +279,7 @@
     const pends = [];
     for (let i = 0; i < 400 && pends.length < 4; i++) { const dt = addDays(now, i), dd = day(iso(dt)); if (dd.pd) pends.push([dt, dd]); }
     const pendHtml = pends.length ? '<h3>Cambios por negociar</h3><div class="card" style="margin-bottom:26px">' + pends.map(([dt, dd]) =>
-      `<button class="saldo" style="width:100%;text-align:left" data-edit="${iso(dt)}" data-focus="c"><span><span class="who">${fechaLarga(dt)}</span><br><span class="muted">${esc(dd.pm || 'Sin motivo apuntado')} · tiene ${esc(real(dd) || 'sin turno')}</span></span><span class="muted">${iso(dt) === iso(now) ? 'hoy' : inDays(dt)}</span></button>`).join('') + '</div>' : '';
+      `<button class="saldo" style="width:100%;text-align:left" data-edit="${iso(dt)}" data-focus="c"><span><span class="who">${fechaLarga(dt)}</span><br><span class="muted">${esc(dd.pm || 'Sin motivo apuntado')} ${real(dd) ? pill(real(dd)) : ''}</span></span><span class="muted">${iso(dt) === iso(now) ? 'hoy' : inDays(dt)}</span></button>`).join('') + '</div>' : '';
 
     // importantes
     const imps = [];
@@ -465,7 +465,7 @@
     const s = {};
     Object.values(MAP).forEach(d => {
       if (!d.c || d.eu || !d.o || real(d) === d.o) return;
-      s[d.c] = (s[d.c] || 0) + hoursOf(real(d), d.f) - hoursOf(d.o, d.f);
+      const k = isCasa(d.c) ? CASA : d.c; s[k] = (s[k] || 0) + hoursOf(real(d), d.f) - hoursOf(d.o, d.f);
     });
     return Object.keys(s).filter(n => Math.abs(s[n]) > 0.01).sort((a, b) => (isCasa(b) - isCasa(a)) || Math.abs(s[b]) - Math.abs(s[a])).map(n => [n, s[n]]);
   }
@@ -801,7 +801,7 @@
       <label class="field" id="ed-pm-wrap" ${ED.pd ? '' : 'hidden'}><span>Para qué lo necesitas</span><input id="ed-pm" value="${esc(ED.pm)}" placeholder="Ej.: viaje, boda, médico…" autocomplete="off"></label>
       ${peticiones(d).length ? `<div class="pet-box" id="ed-pet"><span>Peticiones apuntadas</span><div id="ed-pet-list">${petRows(f)}</div><button type="button" class="btn ghost" data-petclear="${f}" style="min-height:36px;padding:0 12px;margin-top:8px">Borrar todas</button></div>` : ''}
       <label class="field"><span>Cambio con</span><input id="ed-c" list="ed-names" value="${esc(ED.c)}" placeholder="Nombre de la compañera" autocomplete="off"><datalist id="ed-names">${names.map(n => `<option value="${esc(n)}">`).join('')}</datalist></label>
-      <div class="quick"><button type="button" data-quickc="${CASA}">${ICON_CASA}La casa</button><small>Para cambios impuestos por la supervisora o por una formación</small></div>
+      <div class="quick"><button type="button" data-quickc="${CASA}">La Casa${ICON_CASA}</button><small>Para cambios impuestos por la supervisora o por una formación</small></div>
       <div class="field"><span>Cómo se compensa</span><div class="seg wide" role="group" aria-label="Cómo se compensa">
         <button type="button" data-mode="nada" aria-pressed="${ED.mode === 'nada'}">Pendiente</button><button type="button" data-mode="dia" aria-pressed="${ED.mode === 'dia'}">Otro día</button><button type="button" data-mode="dinero" aria-pressed="${ED.mode === 'dinero'}">Dinero</button></div><small class="mode-help" id="ed-mode-help">${MODE_HELP[ED.mode]}</small></div>
       <div id="ed-mode-dia" ${ED.mode === 'dia' ? '' : 'hidden'}>
@@ -948,7 +948,7 @@
     const P = st.por, sh = (h) => (h > 0 ? '+' : h < 0 ? '−' : '') + fmtH(Math.abs(h)) + ' h';
     const rows = [
       ['cob', 'Cambios cobrados'], ['pag', 'Cambios pagados'], ['dia', 'Intercambios por otro día'],
-      ['casa', 'Con la casa'], ['pend', 'Pendientes con compañeras'], ['sin', 'Sin anotar con quién']
+      ['casa', 'Con La Casa'], ['pend', 'Pendientes con compañeras'], ['sin', 'Sin anotar con quién']
     ].filter(([k]) => P[k][1]);
     if (rows.length) {
       html += `<div class="card" style="margin-top:10px"><h3>De dónde sale la diferencia</h3><div class="desg">` + rows.map(([k, n]) =>
@@ -965,7 +965,7 @@
     }
     // Fibao es un segundo trabajo: sus horas van aparte y no cuentan para la jornada del SAS
     if (st.fb) {
-      html += `<div class="card" style="margin-top:10px;border-left:4px solid var(--fibao)"><div class="muted">Horas en Fibao · segundo trabajo, no cuentan en la jornada del SAS</div>` +
+      html += `<div class="card" style="margin-top:10px;border-left:4px solid var(--fibao)"><div class="muted">Horas en Fibao<small style="display:block;font-size:.8rem">Segundo trabajo: no cuentan en la jornada del SAS</small></div>` +
         (hFb ? `<div class="big" style="color:var(--fibao)">${fmtH(st.fb * hFb)} h</div><div style="margin-top:6px;color:var(--ink-2)">${st.fb} ${st.fb === 1 ? 'mañana' : 'mañanas'} × ${fmtH(hFb)} h</div>
           <div class="tot"><span>Total trabajado (SAS + Fibao)</span><b>${fmtH(st.hours + st.fb * hFb)} h</b></div>`
           : `<div class="big" style="color:var(--fibao)">${st.fb} ${st.fb === 1 ? 'mañana' : 'mañanas'}</div><p class="muted" style="margin:6px 0 0;font-size:.88rem">Pon en Ajustes las horas de una mañana en Fibao para ver las horas y el total.</p>`) + '</div>';
@@ -998,7 +998,7 @@
     let h = `<div class="section"><h3>Saldo de días ${y}</h3><div class="card">`;
     h += `<div class="tot" style="margin-top:0;border-top:0;padding-top:0"><span>Vacaciones${vac ? ' (' + vac + ' laborables al año)' : ''}</span><b>${vac ? (quedan > 0 ? 'te quedan ' + quedan : quedan === 0 ? 'todas apuntadas' : 'te pasas en ' + (-quedan)) : tot + ' días'}</b></div>`;
     if (vac) h += `<div class="meter vac"><b style="width:${Math.min(100, V.pas / vac * 100)}%"></b><i style="left:${Math.min(100, V.pas / vac * 100)}%;width:${Math.max(0, Math.min(100, tot / vac * 100) - Math.min(100, V.pas / vac * 100))}%"></i></div>`;
-    h += `<p class="muted" style="margin:4px 0 0;font-size:.88rem">${V.pas} ${V.pas === 1 ? 'laborable disfrutado' : 'laborables disfrutados'} · ${V.fut} ${V.fut === 1 ? 'apuntado' : 'apuntados'} para más adelante · ${V.nat} días naturales con V${vac ? '' : ' · pon en Ajustes los días de vacaciones al año para ver cuántos te quedan'}</p>`;
+    h += `<p class="muted" style="margin:4px 0 0;font-size:.88rem">${V.pas} ${V.pas === 1 ? 'laborable disfrutado' : 'laborables disfrutados'} · ${V.fut} ${V.fut === 1 ? 'apuntado' : 'apuntados'} para más adelante · ${V.nat} días naturales con V</p>${vac ? '' : '<p class="muted" style="margin:6px 0 0;font-size:.85rem">Pon en Ajustes los días de vacaciones al año y verás cuántos te quedan.</p>'}`;
     const ks = Object.keys(comp).sort();
     if (ks.length) h += `<div class="desg" style="margin-top:12px">` + ks.map(k => `<div class="dr"><span>${esc(k)}<small>${esc(info(k).nombre)}</small></span><b>${comp[k].pas} ${comp[k].pas === 1 ? 'disfrutado' : 'disfrutados'}${comp[k].fut ? ' · ' + comp[k].fut + ' más adelante' : ''}</b></div>`).join('') + '</div>';
     return h + '</div></div>';
@@ -1068,11 +1068,11 @@
     const lost = ow.filter(b => !rw.includes(b)), gained = rw.filter(b => !ow.includes(b));
     const nm = (l) => l.map(b => shortName(b).toLowerCase()).join(' y ');
     if (isCasa(d.c)) {
-      if (gained.includes('FOR')) return 'Formación impuesta por la casa';
-      if (lost.length && !gained.length) return 'La casa me quita la ' + nm(lost);
-      if (gained.length && !lost.length) return 'La casa me pone una ' + nm(gained);
-      if (lost.length && gained.length) return 'La casa me cambia la ' + nm(lost) + ' por una ' + nm(gained);
-      return 'Cambio impuesto por la casa';
+      if (gained.includes('FOR')) return 'Formación impuesta por La Casa';
+      if (lost.length && !gained.length) return 'La Casa me quita la ' + nm(lost);
+      if (gained.length && !lost.length) return 'La Casa me pone una ' + nm(gained);
+      if (lost.length && gained.length) return 'La Casa me cambia la ' + nm(lost) + ' por una ' + nm(gained);
+      return 'Cambio impuesto por La Casa';
     }
     if (lost.length && !gained.length) return d.c + ' hace mi ' + nm(lost);
     if (gained.length && !lost.length) return 'Yo hago la ' + nm(gained) + ' de ' + d.c;
@@ -1131,11 +1131,11 @@
         <div><div class="k">Balance</div><div class="v ${bal >= 0 ? 'pos' : 'neg'}">${bal >= 0 ? '+' : '−'}${fmtE(Math.abs(bal))}</div></div></div></div>`;
     }
     const saldo = {}, euros = {};
-    list.forEach(x => { if (x.d.c) { saldo[x.d.c] = (saldo[x.d.c] || 0) + (x.d.eu ? 0 : x.delta); euros[x.d.c] = (euros[x.d.c] || 0) + (x.d.eu || 0); } });
+    list.forEach(x => { if (x.d.c) { const k = isCasa(x.d.c) ? CASA : x.d.c; saldo[k] = (saldo[k] || 0) + (x.d.eu ? 0 : x.delta); euros[k] = (euros[k] || 0) + (x.d.eu || 0); } });
     const sinNombre = list.filter(x => !x.d.c).length;
     html += '<div class="section"><h3>Saldo por compañera</h3><div class="card">';
     const names = Object.keys(saldo).sort((a, b) => (isCasa(b) - isCasa(a)) || Math.abs(saldo[b]) - Math.abs(saldo[a]));
-    html += names.length ? names.map(n => `<div class="saldo${isCasa(n) ? ' casa' : ''}"><span class="who">${isCasa(n) ? ICON_CASA : ''}${esc(n)}${isCasa(n) ? '<small>hospital · supervisión · formación</small>' : ''}</span><span style="text-align:right"><span class="h ${saldo[n] > 0 ? 'pos' : saldo[n] < 0 ? 'neg' : ''}">${saldo[n] === 0 ? 'horas en paz' : (saldo[n] > 0 ? 'te debe ' : 'le debes ') + fmtH(Math.abs(saldo[n])) + ' h'}</span>${euros[n] ? `<br><span class="${euros[n] > 0 ? 'pos' : 'neg'}" style="font-size:.88rem">${euros[n] > 0 ? 'le has cobrado ' : 'le has pagado '}${fmtE(Math.abs(euros[n]))}</span>` : ''}</span></div>`).join('')
+    html += names.length ? names.map(n => `<div class="saldo${isCasa(n) ? ' casa' : ''}"><span class="who"><span class="nm">${esc(dispName(n))}${isCasa(n) ? ICON_CASA : ''}</span>${isCasa(n) ? '<small>Hospital · supervisión · formación</small>' : ''}</span><span style="text-align:right"><span class="h ${saldo[n] > 0 ? 'pos' : saldo[n] < 0 ? 'neg' : ''}">${saldo[n] === 0 ? '<span class="eq" title="Sin horas pendientes">=</span>' : (saldo[n] > 0 ? 'te debe ' : 'le debes ') + fmtH(Math.abs(saldo[n])) + ' h'}</span>${euros[n] ? `<br><span class="${euros[n] > 0 ? 'pos' : 'neg'}" style="font-size:.88rem">${euros[n] > 0 ? 'le has cobrado ' : 'le has pagado '}${fmtE(Math.abs(euros[n]))}</span>` : ''}</span></div>`).join('')
       : '<p class="muted" style="margin:0">Pon con quién hiciste cada cambio y aquí verás quién debe horas a quién.</p>';
     html += '</div></div>';
     if (sinNombre) html += `<p class="muted" style="font-size:.88rem;margin:8px 2px 0">${sinNombre} ${sinNombre === 1 ? 'cambio sin nombre' : 'cambios sin nombre'}. Tócalos para añadir con quién fue.</p>`;
@@ -1151,7 +1151,7 @@
 
   /* ───────── Ajustes ───────── */
   // debe coincidir con VERSION de sw.js (turnos-vNN)
-  const APP_VERSION = '25';
+  const APP_VERSION = '26';
   function renderAj() {
     const c = cfg();
     const f = (k, label, ph, type = 'text') => `<label class="field"><span>${label}</span><input data-cfg="${k}" value="${esc(c[k] || '')}" placeholder="${ph}" inputmode="${type === 'num' ? 'decimal' : 'text'}"></label>`;
@@ -1507,6 +1507,43 @@
   const hk = new URLSearchParams(location.hash.slice(1)).get('k');
   if (hk) { $('#gate-key').value = hk; history.replaceState(null, '', location.pathname); }
   if (!S.url) $('#gate-url-wrap').hidden = false;
+  /* ───────── cortes de línea cuidados ─────────
+     En todo lo que se pinta: «7 h», «50 €», «3 días»… nunca se separan, y los textos con « · »
+     se parten después del punto, no a mitad de frase (cada trozo va en un bloque que no se corta si cabe). */
+  const UNIDAD = /(\d) (h|€|días?|min|turnos?|mañanas?|noches?|tardes?|cambios?|laborables?)(?=[\s.,;:)·]|$)/g;
+  function cuidarTexto(root) {
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => {
+        const pe = n.parentElement;
+        if (!pe || pe.closest('script,style,textarea,input,svg,.sg,[contenteditable]')) return NodeFilter.FILTER_REJECT;
+        return /\d |·/.test(n.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+      }
+    });
+    const nodes = []; while (w.nextNode()) nodes.push(w.currentNode);
+    nodes.forEach(n => {
+      let v = n.nodeValue.replace(UNIDAD, '$1\u00a0$2');
+      if (!v.includes(' · ')) { if (v !== n.nodeValue) n.nodeValue = v; return; }
+      const trozos = v.split(' · '), frag = document.createDocumentFragment();
+      trozos.forEach((t, i) => {
+        if (t.trim()) {
+          // los espacios del borde quedan fuera del bloque (dentro se perderían, p. ej. «<b>Pepita</b> el 8 nov»)
+          if (/^\s/.test(t)) frag.appendChild(document.createTextNode(' '));
+          const sp = document.createElement('span'); sp.className = 'sg'; sp.textContent = t.trim() + (i < trozos.length - 1 ? '\u00a0·' : ''); frag.appendChild(sp);
+          if (/\s$/.test(t) && i === trozos.length - 1) frag.appendChild(document.createTextNode(' '));
+        }
+        else if (i < trozos.length - 1) frag.appendChild(document.createTextNode('·'));
+        if (i < trozos.length - 1) frag.appendChild(document.createTextNode(' '));
+      });
+      // si el texto acaba en « · » y sigue un elemento (p. ej. «1 turno por negociar» en color), ese elemento tampoco se parte
+      const sig = n.nextSibling;
+      if (v.endsWith(' · ') && sig && sig.nodeType === 1) sig.classList.add('sg');
+      n.replaceWith(frag);
+    });
+  }
+  new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(nd => { if (nd.nodeType === 1) cuidarTexto(nd); else if (nd.nodeType === 3 && nd.parentElement) cuidarTexto(nd.parentElement); })))
+    .observe(document.body, { childList: true, subtree: true });
+  cuidarTexto(document.body);
+
   if (window.TURNOS_DEMO && window.TURNOS_DEMO_DATA && store.get('demoVer', '') !== window.TURNOS_DEMO_VER) startDemo();
   else if (S.data && (S.key || S.demo)) { index(); show('hoy'); load().catch(() => {}); flush(); }
   else if (window.TURNOS_DEMO) startDemo();
