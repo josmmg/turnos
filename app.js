@@ -91,7 +91,7 @@
     (S.data.dias || []).forEach(d => { MAP[d.f] = Object.assign({}, d); });
     Object.keys(S.pending).forEach(f => { MAP[f] = Object.assign({}, MAP[f] || { f }, S.pending[f]); clean(MAP[f]); });
   }
-  function clean(d) { ['r', 'o', 'n', 'c', 'pm', 'sw', 'vj'].forEach(k => { if (d[k] === '') delete d[k]; }); ['fb', 'fe', 'im', 'pd', 'eu'].forEach(k => { if (!d[k]) delete d[k]; }); }
+  function clean(d) { ['r', 'o', 'n', 'c', 'pm', 'sw', 'vj', 'pt'].forEach(k => { if (d[k] === '') delete d[k]; }); ['fb', 'fe', 'im', 'pd', 'eu'].forEach(k => { if (!d[k]) delete d[k]; }); }
 
   /* ───────── horarios ───────── */
   function intervals(fromDate, days) {
@@ -107,11 +107,33 @@
     }
     return out.sort((a, b) => a.start - b.start);
   }
+  // descanso entre turnos: tras una noche, al menos 12 h hasta el siguiente; nunca turnos que se pisen
+  function avisosDescanso(over) {
+    const fs = new Set();
+    Object.keys(over).forEach(f => [-1, 0, 1].forEach(k => fs.add(iso(addDays(parseISO(f), k)))));
+    const ints = [];
+    [...fs].sort().forEach(f => {
+      const dt = parseISO(f), d = over[f] ? Object.assign({}, day(f), over[f]) : day(f);
+      parts(real(d)).forEach(p => { const c = info(p.base); if (c.tipo === 'turno' && c.inicio && c.fin) ints.push(mkInt(dt, c.inicio, c.fin, shortName(p.base), p.base, f)); });
+      if (d.fb) ints.push(mkInt(dt, cfg().fibao_inicio || '08:00', cfg().fibao_fin || '14:00', 'Fibao', 'FB', f));
+    });
+    ints.sort((x, y) => x.start - y.start);
+    const out = [];
+    for (let i = 1; i < ints.length; i++) {
+      const A = ints[i - 1], B = ints[i], gap = (B.start - A.end) / 36e5;
+      if (!over[A.f] && !over[B.f]) continue;
+      const dA = parseISO(A.f), dB = parseISO(B.f);
+      const txt = (x, dt) => x.name.toLowerCase() + ' del ' + DIAS[dt.getDay()] + ' ' + dt.getDate();
+      if (gap < 0) out.push('La ' + txt(A, dA) + ' (hasta las ' + A.fin + ') se pisa con ' + (B.base === 'FB' ? 'Fibao' : 'la ' + B.name.toLowerCase()) + ' del ' + DIAS[dB.getDay()] + ' ' + dB.getDate() + ' (desde las ' + B.ini + ').');
+      else if (A.base === 'N' && gap < 12) out.push('Sales de la noche del ' + DIAS[dA.getDay()] + ' ' + dA.getDate() + ' a las ' + A.fin + ' y entras ' + (B.base === 'FB' ? 'en Fibao' : 'de ' + B.name.toLowerCase()) + ' a las ' + B.ini + ': solo ' + fmtH(gap) + ' h de descanso.');
+    }
+    return out;
+  }
   function mkInt(dt, ini, fin, name, base, f) {
     const [a, b] = ini.split(':').map(Number), [c, e] = fin.split(':').map(Number);
     const start = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), a, b);
     let end = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), c, e);
-    if (end <= start) end = addDays(end, 1);
+    if (end <= start) end = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate() + 1, c, e); // turno que acaba al día siguiente (addDays quitaría la hora)
     return { start, end, name, base, f, ini, fin };
   }
   function rel(ms) {
@@ -198,22 +220,25 @@
     }
 
     // datos rápidos
-    const nextOf = (pred) => { for (let i = 1; i < 120; i++) { const dt = addDays(now, i); if (pred(real(day(iso(dt))), day(iso(dt)))) return dt; } return null; };
-    const nN = nextOf(c => parts(c).some(p => p.base === 'N'));
+    const nextOf = (pred, from = 1) => { for (let i = from; i < 120; i++) { const dt = addDays(now, i); if (pred(real(day(iso(dt))), day(iso(dt)))) return dt; } return null; };
+    const nN = nextOf(c => parts(c).some(p => p.base === 'N'), 0); // la noche de hoy aún no ha empezado o está en curso
     const nL = nextOf(c => c && !worked(c));
-    const nFb = nextOf((c, dd) => !!dd.fb);
+    const hm = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+    const nFb = nextOf((c, dd) => !!dd.fb, hm < (cfg().fibao_fin || '14:00') ? 0 : 1);
     const wk0 = addDays(now, -((now.getDay() + 6) % 7));
     let wkH = 0; for (let i = 0; i < 7; i++) wkH += hoursOf(real(day(iso(addDays(wk0, i)))));
-    const inDays = (dt) => { const n = Math.round((dt - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5); return n === 1 ? 'mañana' : 'en ' + n + ' días'; };
+    const dayN = (dt) => Math.round((new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5);
+    const inDays = (dt, hoy = 'hoy') => { const n = dayN(dt); return n === 0 ? hoy : n === 1 ? 'mañana' : 'en ' + n + ' días'; };
+    const diaCorto = (dt) => dayN(dt) === 0 ? 'Hoy' : cap(DIAS[dt.getDay()]) + ' ' + dt.getDate();
     const fact = (k, v, s) => `<div class="fact"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s || ''}</div></div>`;
     const sal = saldos();
     $('#hoy-debe').innerHTML = sal.length ? `<h3>Horas pendientes de devolver</h3><button type="button" class="card debe" data-s="cam">` + sal.slice(0, 5).map(([n, h]) =>
       `<span class="saldo${isCasa(n) ? ' casa' : ''}"><span class="who">${isCasa(n) ? ICON_CASA : ''}${esc(n)}</span><span class="h ${h > 0 ? 'pos' : 'neg'}">${h > 0 ? 'te debe ' : 'le debes '}${fmtH(Math.abs(h))} h</span></span>`).join('') + '</button>' : '';
     $('#facts').innerHTML =
-      fact('Próxima noche', nN ? cap(DIAS[nN.getDay()]) + ' ' + nN.getDate() : '—', nN ? inDays(nN) : 'sin noches a la vista') +
+      fact('Próxima noche', nN ? diaCorto(nN) : '—', nN ? inDays(nN, 'esta noche') : 'sin noches a la vista') +
       fact('Próximo día libre', nL ? cap(DIAS[nL.getDay()]) + ' ' + nL.getDate() : '—', nL ? inDays(nL) : '') +
       fact('Esta semana', fmtH(wkH) + ' h', 'de lunes a domingo') +
-      fact('Próximo Fibao', nFb ? cap(DIAS[nFb.getDay()]) + ' ' + nFb.getDate() : '—', nFb ? inDays(nFb) : 'sin mañanas apuntadas');
+      fact('Próximo Fibao', nFb ? diaCorto(nFb) : '—', nFb ? inDays(nFb) : 'sin mañanas apuntadas') + cuentaAtras(now, dayN);
 
     // año
     const st = stats(now.getFullYear());
@@ -344,6 +369,82 @@
     if (code && isWorkBase(code) && isSunOrFest(f)) code += 'F';
     setLayer(f, S.layer, code);
   }
+  /* ───────── compartir el mes como imagen ───────── */
+  async function exportMes() {
+    const m0 = S.month, y = m0.getFullYear(), m = m0.getMonth(), layer = S.layer;
+    const cs = getComputedStyle(document.documentElement);
+    const col = (c) => { c = String(c || '').trim(); const v = c.match(/^var\((--[\w-]+)\)$/); return v ? cs.getPropertyValue(v[1]).trim() || '#888' : c || '#888'; };
+    const W = 1080, pad = 48, gap = 10, cw = (W - pad * 2 - gap * 6) / 7, ch = cw * 1.12;
+    const lead = (m0.getDay() + 6) % 7, nd = new Date(y, m + 1, 0).getDate(), rows = Math.ceil((lead + nd) / 7);
+    const used = new Set(), H = 250 + rows * (ch + gap) + 150;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const g = cv.getContext('2d'), FONT = '-apple-system, "Segoe UI", Roboto, sans-serif';
+    const rr = (x, y0, w, h, r) => { g.beginPath(); g.moveTo(x + r, y0); g.arcTo(x + w, y0, x + w, y0 + h, r); g.arcTo(x + w, y0 + h, x, y0 + h, r); g.arcTo(x, y0 + h, x, y0, r); g.arcTo(x, y0, x + w, y0, r); g.closePath(); };
+    g.fillStyle = '#F2F4F7'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#18202B'; g.font = `800 64px ${FONT}`; g.fillText(cap(MESES[m]) + ' ' + y, pad, 110);
+    g.fillStyle = '#4A5565'; g.font = `500 32px ${FONT}`; g.fillText('Turnos' + (cfg().nombre ? ' de ' + cfg().nombre : '') + (layer === 'orig' ? ' · cuadrante' : ''), pad, 160);
+    g.font = `700 26px ${FONT}`; g.textAlign = 'center';
+    ['L', 'M', 'X', 'J', 'V', 'S', 'D'].forEach((x, i) => { g.fillStyle = i === 6 ? '#C2255C' : '#8590A0'; g.fillText(x, pad + i * (cw + gap) + cw / 2, 222); });
+    for (let k = 1; k <= nd; k++) {
+      const i = lead + k - 1, x = pad + (i % 7) * (cw + gap), y0 = 240 + Math.floor(i / 7) * (ch + gap);
+      const f = iso(new Date(y, m, k)), d = day(f), c = layer === 'orig' ? (d.o || '') : real(d);
+      rr(x, y0, cw, ch, 18); g.fillStyle = d.vj ? '#FCE4EE' : '#FFFFFF'; g.fill();
+      g.lineWidth = d.fb ? 6 : 2; g.strokeStyle = d.fb ? col('var(--fibao)') : d.vj ? '#F3A9C6' : '#E2E6EC'; g.stroke();
+      g.fillStyle = isSunOrFest(f) ? '#C2255C' : '#4A5565'; g.font = `700 30px ${FONT}`; g.fillText(String(k), x + cw / 2, y0 + 42);
+      if (d.im) { g.fillStyle = '#C2255C'; g.font = `700 26px ${FONT}`; g.fillText('★', x + cw - 22, y0 + 32); }
+      const ps = parts(c);
+      if (ps.length) {
+        const px = x + 10, pw = cw - 20, py = y0 + ch - 58, ph = 44;
+        g.save(); rr(px, py, pw, ph, 10); g.clip();
+        ps.forEach((p, j) => { g.fillStyle = col(info(p.base).color); g.fillRect(px + pw * j / ps.length, py, pw / ps.length + 1, ph); used.add(p.base); });
+        if (d.pd) { g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 5; for (let s = -ph; s < pw + ph; s += 14) { g.beginPath(); g.moveTo(px + s, py + ph); g.lineTo(px + s + ph, py); g.stroke(); } }
+        g.restore();
+        g.fillStyle = '#FFFFFF'; g.font = `800 ${c.length > 4 ? 22 : 28}px ${FONT}`; g.fillText(c, px + pw / 2, py + 31);
+      }
+    }
+    // leyenda
+    g.textAlign = 'left'; g.font = `500 26px ${FONT}`;
+    let lx = pad, ly = 240 + rows * (ch + gap) + 50;
+    const item = (color, txt, border) => {
+      const w = g.measureText(txt).width + 50;
+      if (lx + w > W - pad) { lx = pad; ly += 44; }
+      rr(lx, ly - 22, 26, 26, 6); g.fillStyle = color; g.fill(); if (border) { g.lineWidth = 3; g.strokeStyle = border; g.stroke(); }
+      g.fillStyle = '#4A5565'; g.fillText(txt, lx + 36, ly); lx += w + 18;
+    };
+    [...used].forEach(b => item(col(info(b).color), b + ' ' + info(b).nombre));
+    for (let k = 1; k <= nd; k++) { const d = day(iso(new Date(y, m, k))); if (d.fb) { item('#FFFFFF', 'Fibao', col('var(--fibao)')); break; } }
+    for (let k = 1; k <= nd; k++) { const d = day(iso(new Date(y, m, k))); if (d.vj) { item('#FCE4EE', d.vj, '#F3A9C6'); break; } }
+    const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
+    const name = 'Turnos ' + MESES[m] + ' ' + y + '.png';
+    const file = new File([blob], name, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: 'Turnos ' + MESES[m] + ' ' + y }); } catch (e) { /* cancelado */ }
+      return;
+    }
+    const url = URL.createObjectURL(blob), a2 = document.createElement('a');
+    a2.href = url; a2.download = name; document.body.appendChild(a2); a2.click(); a2.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
+  /* ───────── cuenta atrás: vacaciones y viajes ───────── */
+  function cuentaAtras(now, dayN) {
+    const isV = (d) => parts(real(d)).some(p => p.base === 'V');
+    const out = [];
+    const bloque = (test, label, nombre) => {
+      for (let i = 0; i < 400; i++) {
+        const dt = addDays(now, i), d = day(iso(dt));
+        if (!test(d)) continue;
+        let fin = dt; while (test(day(iso(addDays(fin, 1))))) fin = addDays(fin, 1);
+        const n = dayN(dt), hasta = fin.getDate() + ' ' + MESES_C[fin.getMonth()];
+        out.push(`<div class="fact count"><div class="k">${label}</div><div class="v">${n === 0 ? 'Ya estás' : n === 1 ? 'Mañana' : n + ' días'}</div><div class="s">${esc(nombre(d))}${n === 0 ? ' · hasta el ' + hasta : ' · ' + dt.getDate() + ' ' + MESES_C[dt.getMonth()] + (fin > dt ? '–' + hasta : '')}</div></div>`);
+        return;
+      }
+    };
+    bloque(isV, 'Vacaciones', () => 'Vacaciones');
+    bloque(d => !!d.vj, 'Viaje', d => d.vj);
+    return out.join('');
+  }
+
   /* ───────── saldos con compañeras y la casa (todos los años) ───────── */
   function saldos() {
     const s = {};
@@ -366,6 +467,21 @@
   }
   const diaTxt = (dt, ref) => DIAS[dt.getDay()] + ' ' + dt.getDate() + (!ref || dt.getMonth() !== ref.getMonth() ? ' de ' + MESES[dt.getMonth()] : '');
   /* ───────── pedir el cambio por WhatsApp ───────── */
+  const peticiones = (d) => { try { const v = JSON.parse(d.pt || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
+  function petTxt(p, ref) {
+    const dt = parseISO(p.d), cuando = dt.getDate() + ' ' + MESES_C[dt.getMonth()];
+    const como = p.m === 'dev' ? (p.o && p.o.length ? 'le ofreces ' + p.o.map(f => diaTxt(parseISO(f), parseISO(ref))).join(', ') : 'con devolución') : p.m === 'pago' ? (p.e ? 'pagándolo, ' + fmtE(p.e) : 'pagándolo') : 'a convenir';
+    return 'Pedido ' + (p.a ? 'a ' + p.a + ' ' : '') + 'el ' + cuando + ' · ' + como;
+  }
+  function apuntarPeticion() {
+    const e = parseFloat(String(WA.eur).replace(',', '.'));
+    const p = { a: ($('#wa-a').value || '').trim().slice(0, 40), d: iso(new Date()), m: WA.mode };
+    if (WA.mode === 'dev' && WA.days.length) p.o = WA.days.slice().sort();
+    if (WA.mode === 'pago' && isFinite(e) && e > 0) p.e = e;
+    const list = peticiones(day(WA.f)).concat(p).slice(-6);
+    const f = WA.f;
+    setTimeout(() => { save(f, { pt: JSON.stringify(list) }); closeEditor(); toast('Apuntado en «Por negociar»' + (p.a ? ': pedido a ' + p.a : '')); }, 400);
+  }
   let WA = null;
   function mensajeCambio() {
     const d = day(WA.f), dt = parseISO(WA.f), c = real(d);
@@ -391,6 +507,7 @@
         <small class="muted" id="wa-help" style="display:block;margin-top:6px"></small></div>
       <div class="field" id="wa-dev"><span>Días que le ofreces (toca uno o varios)</span><div class="mini" id="wa-mini"></div></div>
       <label class="field" id="wa-pago" hidden><span>Cuánto le pagas (opcional)</span><input id="wa-eur" inputmode="decimal" placeholder="Ej.: 60" autocomplete="off"></label>
+      <label class="field"><span>A quién se lo pides (para apuntarlo; opcional)</span><input id="wa-a" list="wa-names" placeholder="Nombre de la compañera" autocomplete="off"><datalist id="wa-names">${[...new Set(Object.values(MAP).map(d => d.c).filter(c => c && !isCasa(c)))].sort().map(n => `<option value="${esc(n)}">`).join('')}</datalist></label>
       <label class="field"><span>Mensaje (puedes cambiarlo; si cambias una opción de arriba, se vuelve a escribir)</span><textarea id="wa-txt" rows="4"></textarea></label>
       <div class="actions"><button type="button" class="btn ghost" id="ed-back">Volver</button><a class="btn" id="wa-go" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none">Abrir WhatsApp</a></div>`;
     drawWA();
@@ -665,6 +782,7 @@
       <div class="field"><span>Importe</span><div class="money">
         <div class="seg" role="group" aria-label="Cobro o pago"><button data-eus="1" aria-pressed="${ED.eu >= 0}">Cobro</button><button data-eus="-1" aria-pressed="${ED.eu < 0}">Pago</button></div>
         <input id="ed-eu" inputmode="decimal" value="${ED.eu ? String(Math.abs(ED.eu)).replace('.', ',') : ''}" placeholder="0" aria-label="Importe en euros"><span class="muted">€</span></div></div></div>
+      <div class="warnbox" id="ed-warn" hidden></div>
       <div class="actions"><button class="btn danger" id="ed-clear">Vaciar</button><button class="btn ghost" id="ed-back">Volver</button><button class="btn" id="ed-save">Guardar</button></div>`;
     drawCodes(); drawSwap();
     sh.classList.add('on'); $('#scrim').classList.add('on');
@@ -681,6 +799,7 @@
       const i = ED.sel.indexOf(b);
       return `<button class="code-btn" data-code="${b}" aria-pressed="${i >= 0}" style="background:${info(b).color};--cc:${info(b).color}" title="${esc(info(b).nombre)}">${esc(b)}${i >= 0 && ED.sel.length > 1 ? '<span class="ord">' + (i + 1) + '</span>' : ''}</button>`;
     }).join('');
+    if (ED.warned) { ED.warned = false; const bx = $('#ed-warn'); if (bx) { bx.hidden = true; $('#ed-save').textContent = 'Guardar'; } }
     const code = edCode();
     $('#ed-prev').innerHTML = code ? pill(code, 'pill') + ' <span style="font-size:1rem;color:var(--ink-2)">' + esc(parts(code).map(p => info(p.base).nombre).join(' + ')) + '</span>' : '<span class="muted" style="font-size:1rem">Sin turno</span>';
     $('#ed-hours').textContent = code ? fmtH(hoursOf(code)) + ' h' : '';
@@ -729,6 +848,28 @@
   function closeSheet() { $('#sheet').classList.remove('on'); $('#scrim').classList.remove('on'); ED = null; if (S.reloadPending) setTimeout(S.reloadPending, 300); }
   // Guardar siempre cierra la ventana; si algo falla, se avisa en vez de quedarse abierta
   function saveEditor() {
+    // primero, comprobar el descanso; si hay problema, se avisa y el segundo toque guarda igualmente
+    try {
+      if (!ED.warned) {
+        const code = edCode(), d = day(ED.f), over = {};
+        const realNuevo = ED.layer === 'real' ? code : (!d.r || d.r === d.o ? code : d.r);
+        over[ED.f] = { r: realNuevo, o: ED.layer === 'orig' ? code : d.o, fb: ED.fb ? 1 : 0 };
+        const sw = ED.mode === 'dia' && $('#ed-sw').value && $('#ed-sw').value !== ED.f ? $('#ed-sw').value : '';
+        if (sw && ED.swc) over[sw] = { r: compose(parts(ED.swc).map(p => ({ base: p.base, f: isSunOrFest(sw) }))) };
+        // solo los problemas nuevos: lo que ya estaba así (p. ej. Fibao al salir de noche) no se vuelve a avisar
+        const antes = {}; Object.keys(over).forEach(k => { antes[k] = {}; });
+        const ya = new Set(avisosDescanso(antes));
+        const w = avisosDescanso(over).filter(x => !ya.has(x));
+        if (w.length) {
+          ED.warned = true;
+          const box = $('#ed-warn'); box.hidden = false;
+          box.innerHTML = '<b>Ojo con el descanso</b>' + w.map(x => '<p>' + esc(x) + '</p>').join('') + '<p class="muted">Si está bien así, pulsa «Guardar igualmente».</p>';
+          $('#ed-save').textContent = 'Guardar igualmente';
+          box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+      }
+    } catch (err) { /* si falla la comprobación, se guarda igual */ }
     try { saveEditorInner(); } catch (err) { toast('No se ha podido guardar: ' + (err && err.message || err)); }
     finally { closeEditor(); }
   }
@@ -806,10 +947,55 @@
       ${s(st.fest, 'turnos en festivo', 'var(--fest)')}${s(st.dom, 'domingos trabajados', 'var(--fest)')}${s(st.fb, 'mañanas en Fibao', 'var(--fibao)')}
       ${s(st.V + (vac ? '<small style="font-size:.9rem;color:var(--ink-3)"> / ' + vac + '</small>' : ''), 'días de vacaciones', 'var(--v)')}${s(Object.values(st.comp).reduce((a, b) => a + b, 0), 'compensaciones', 'var(--comp)')}${s(st.cambios, 'días cambiados', 'var(--ink-3)')}</div>
       <p class="muted" style="font-size:.85rem;margin:8px 2px 0">Compensaciones: ${esc(compTxt)}</p>`;
+    html += saldoDias(y, vac) + complementos(y);
     html += `<div class="section"><h3>Horas por mes</h3><div class="card chart">${monthChart(st)}<div class="keyline"><span><i style="background:var(--ink)"></i>Real</span><span><i style="background:var(--line);outline:1px solid var(--ink-3)"></i>Cuadrante</span></div></div></div>`;
     html += `<div class="section"><h3>Horas en el SAS, año a año</h3><div class="card chart">${yearsChart(y)}</div></div>`;
     html += `<div class="section"><h3>Turnos por año</h3><div class="card chart">${turnosChart(y)}</div></div>`;
     $('#res-body').innerHTML = html;
+  }
+  /* ───────── saldo de días ───────── */
+  function saldoDias(y, vac) {
+    const today = iso(new Date()), V = { pas: 0, fut: 0, nat: 0 }, comp = {};
+    for (let dt = new Date(y, 0, 1); dt.getFullYear() === y; dt = addDays(dt, 1)) {
+      const f = iso(dt), d = MAP[f]; if (!d) continue;
+      parts(real(d)).forEach(p => {
+        const k = f <= today ? 'pas' : 'fut';
+        // vacaciones: cuentan los días laborables (de lunes a viernes y no festivos), como los 22 del SAS
+        if (p.base === 'V') { V.nat++; if (dt.getDay() !== 6 && !isSunOrFest(f)) V[k]++; }
+        else if (info(p.base).tipo === 'compensacion') { comp[p.base] = comp[p.base] || { pas: 0, fut: 0 }; comp[p.base][k]++; }
+      });
+    }
+    const tot = V.pas + V.fut, quedan = vac ? vac - tot : null;
+    let h = `<div class="section"><h3>Saldo de días ${y}</h3><div class="card">`;
+    h += `<div class="tot" style="margin-top:0;border-top:0;padding-top:0"><span>Vacaciones${vac ? ' (' + vac + ' laborables al año)' : ''}</span><b>${vac ? (quedan > 0 ? 'te quedan ' + quedan : quedan === 0 ? 'todas apuntadas' : 'te pasas en ' + (-quedan)) : tot + ' días'}</b></div>`;
+    if (vac) h += `<div class="meter vac"><b style="width:${Math.min(100, V.pas / vac * 100)}%"></b><i style="left:${Math.min(100, V.pas / vac * 100)}%;width:${Math.max(0, Math.min(100, tot / vac * 100) - Math.min(100, V.pas / vac * 100))}%"></i></div>`;
+    h += `<p class="muted" style="margin:4px 0 0;font-size:.88rem">${V.pas} ${V.pas === 1 ? 'laborable disfrutado' : 'laborables disfrutados'} · ${V.fut} ${V.fut === 1 ? 'apuntado' : 'apuntados'} para más adelante · ${V.nat} días naturales con V${vac ? '' : ' · pon en Ajustes los días de vacaciones al año para ver cuántos te quedan'}</p>`;
+    const ks = Object.keys(comp).sort();
+    if (ks.length) h += `<div class="desg" style="margin-top:12px">` + ks.map(k => `<div class="dr"><span>${esc(k)}<small>${esc(info(k).nombre)}</small></span><b>${comp[k].pas} ${comp[k].pas === 1 ? 'disfrutado' : 'disfrutados'}${comp[k].fut ? ' · ' + comp[k].fut + ' más adelante' : ''}</b></div>`).join('') + '</div>';
+    return h + '</div></div>';
+  }
+
+  /* ───────── complementos estimados (nocturnidad y festivos) ───────── */
+  function complementos(y) {
+    const eN = num(cfg().eur_noche_h), eF = num(cfg().eur_festivo_h);
+    const ms = Array.from({ length: 12 }, () => ({ n: 0, f: 0 }));
+    for (let dt = new Date(y, 0, 1); dt.getFullYear() === y; dt = addDays(dt, 1)) {
+      const f = iso(dt), d = MAP[f]; if (!d) continue;
+      parts(real(d)).forEach(p => {
+        if (!isWorkBase(p.base)) return;
+        const h = num(info(p.base).horas);
+        if (p.base === 'N') ms[dt.getMonth()].n += h;
+        if (p.f || isSunOrFest(f)) ms[dt.getMonth()].f += h;
+      });
+    }
+    const T = ms.reduce((s, m) => ({ n: s.n + m.n, f: s.f + m.f }), { n: 0, f: 0 });
+    if (!T.n && !T.f) return '';
+    const eur = (m) => m.n * eN + m.f * eF, hasE = eN || eF;
+    let h = `<div class="section"><h3>Complementos ${y}</h3><div class="card"><table class="comp"><thead><tr><th></th><th>Noche</th><th>Festivo</th>${hasE ? '<th>Estimado</th>' : ''}</tr></thead><tbody>`;
+    ms.forEach((m, i) => { if (m.n || m.f) h += `<tr><td>${cap(MESES[i])}</td><td>${fmtH(m.n)} h</td><td>${fmtH(m.f)} h</td>${hasE ? '<td>' + fmtE(eur(m)) + '</td>' : ''}</tr>`; });
+    h += `</tbody><tfoot><tr><td>Total</td><td>${fmtH(T.n)} h</td><td>${fmtH(T.f)} h</td>${hasE ? '<td>' + fmtE(eur(T)) + '</td>' : ''}</tr></tfoot></table>`;
+    h += `<p class="muted" style="margin:8px 0 0;font-size:.85rem">${hasE ? 'Estimación con tus importes por hora (' + (eN ? fmtE(eN) + ' noche' : '') + (eN && eF ? ' · ' : '') + (eF ? fmtE(eF) + ' festivo' : '') + '). Compárala con la nómina: se cobra con uno o dos meses de retraso.' : 'Pon en Ajustes cuánto te pagan por hora de noche y de festivo y aquí verás lo que deberías cobrar.'} Cuenta como festivo todo turno en domingo o festivo.</p>`;
+    return h + '</div></div>';
   }
   function monthChart(st) {
     const W = 340, H = 180, top = 14, bot = 22, left = 4, max = Math.max(1, ...st.months.map(m => Math.max(m.r, m.o)));
@@ -889,8 +1075,8 @@
     let html = q ? '' : `<div class="h3row"><h3>Por negociar${pend.length ? ' · ' + pend.length : ''}</h3><button type="button" class="btn ghost" id="trip-open" style="min-height:38px;padding:0 12px;font-size:.9rem">Planificar un viaje</button></div>`;
     if (!q) html += pend.length ? '<div class="card" style="padding:4px 16px">' + pend.map(x => `
       <button class="chg" data-edit="${x.f}" data-focus="c"><span class="dt">${x.dt.getDate()} ${MESES_C[x.dt.getMonth()]}<small>${DIAS[x.dt.getDay()]}${x.dt.getFullYear() !== y ? ' ' + x.dt.getFullYear() : ''}</small></span>
-      <span><span class="pills">${pill(real(x.d))}${x.f < today ? '<span class="muted" style="font-size:.8rem">ya pasó</span>' : ''}</span><span class="who">${esc(x.d.pm || 'Sin motivo apuntado')}</span></span>
-      <span class="resolve">Resolver</span></button>${x.f >= today ? `<button type="button" class="wa" data-wa="${x.f}">Pedir el cambio por WhatsApp</button>` : ''}`).join('') + '</div>'
+      <span><span class="pills">${pill(real(x.d))}${x.f < today ? '<span class="muted" style="font-size:.8rem">ya pasó</span>' : ''}</span><span class="who">${esc(x.d.pm || 'Sin motivo apuntado')}</span>${peticiones(x.d).slice(-2).map(p => `<span class="pet">${esc(petTxt(p, x.f))}</span>`).join('')}</span>
+      <span class="resolve">Resolver</span></button>${x.f >= today ? `<button type="button" class="wa" data-wa="${x.f}">${peticiones(x.d).length ? 'Pedírselo a otra por WhatsApp' : 'Pedir el cambio por WhatsApp'}</button>` : ''}`).join('') + '</div>'
       : '<div class="empty-note">No tienes días por negociar. Para apuntar uno, abre el día y activa «Necesito cambiar este día».</div>';
     if (!q) {
       // viajes del año: cada tramo seguido de días con el mismo nombre de viaje
@@ -936,7 +1122,7 @@
 
   /* ───────── Ajustes ───────── */
   // debe coincidir con VERSION de sw.js (turnos-vNN)
-  const APP_VERSION = '15';
+  const APP_VERSION = '16';
   function renderAj() {
     const c = cfg();
     const f = (k, label, ph, type = 'text') => `<label class="field"><span>${label}</span><input data-cfg="${k}" value="${esc(c[k] || '')}" placeholder="${ph}" inputmode="${type === 'num' ? 'decimal' : 'text'}"></label>`;
@@ -951,6 +1137,9 @@
         ${f('aviso_minutos', 'Aviso antes de cada turno (minutos)', '60', 'num')}
         <p class="muted" style="font-size:.85rem;margin:12px 0 0">Si quieres un aviso distinto para algún turno, ponlo aquí (en minutos). Vacío = el general. Por ejemplo, 180 para que la noche avise 3 horas antes.</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${f('aviso_M', 'Antes de la mañana', '', 'num')}${f('aviso_T', 'Antes de la tarde', '', 'num')}${f('aviso_N', 'Antes de la noche', '', 'num')}${f('aviso_FB', 'Antes de Fibao', '', 'num')}</div>
+        <h3 style="margin-top:18px">Complementos</h3>
+        <p class="muted" style="font-size:.85rem;margin:4px 0 0">Lo que te pagan por cada hora de noche y por cada hora en domingo o festivo. Míralo en tu nómina. Sirve para estimar en Resumen lo que deberías cobrar.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${f('eur_noche_h', '€ por hora de noche', 'Según nómina', 'num')}${f('eur_festivo_h', '€ por hora festiva', 'Según nómina', 'num')}</div>
         <button class="btn wide" id="aj-save" style="margin-top:16px">Guardar ajustes</button>
       </div>
       <div class="section card"><h3>Calendario del iPhone</h3>
@@ -1119,8 +1308,10 @@
     if (t.id === 'brush-pat') { openPattern(); return; }
     if (t.dataset.quickc && ED) { $('#ed-c').value = t.dataset.quickc; return; }
     if (t.id === 'cal-pick') { openMonthPicker(); return; }
+    if (t.id === 'cal-share') { exportMes().catch(err => toast('No se ha podido crear la imagen: ' + err.message)); return; }
     if (t.id === 'trip-open') { openTrip(); return; }
     if (t.dataset.wa) { openWA(t.dataset.wa); return; }
+    if (WA && t.id === 'wa-go') { apuntarPeticion(); return; }
     if (WA && t.dataset.wmode) { if (document.activeElement) document.activeElement.blur(); WA.mode = t.dataset.wmode; WA.edited = false; drawWA(); return; }
     if (WA && t.dataset.wmini) { WA.m = new Date(WA.m.getFullYear(), WA.m.getMonth() + Number(t.dataset.wmini), 1); drawWA(); return; }
     if (WA && t.dataset.wpick) { const f = t.dataset.wpick, i = WA.days.indexOf(f); if (i >= 0) WA.days.splice(i, 1); else WA.days.push(f); WA.edited = false; drawWA(); return; }
