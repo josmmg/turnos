@@ -391,7 +391,7 @@
         <small class="muted" id="wa-help" style="display:block;margin-top:6px"></small></div>
       <div class="field" id="wa-dev"><span>Días que le ofreces (toca uno o varios)</span><div class="mini" id="wa-mini"></div></div>
       <label class="field" id="wa-pago" hidden><span>Cuánto le pagas (opcional)</span><input id="wa-eur" inputmode="decimal" placeholder="Ej.: 60" autocomplete="off"></label>
-      <label class="field"><span>Mensaje (puedes cambiarlo)</span><textarea id="wa-txt" rows="4"></textarea></label>
+      <label class="field"><span>Mensaje (puedes cambiarlo; si cambias una opción de arriba, se vuelve a escribir)</span><textarea id="wa-txt" rows="4"></textarea></label>
       <div class="actions"><button type="button" class="btn ghost" id="ed-back">Volver</button><a class="btn" id="wa-go" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none">Abrir WhatsApp</a></div>`;
     drawWA();
     $('#sheet').classList.add('on'); $('#scrim').classList.add('on');
@@ -936,7 +936,7 @@
 
   /* ───────── Ajustes ───────── */
   // debe coincidir con VERSION de sw.js (turnos-vNN)
-  const APP_VERSION = '14';
+  const APP_VERSION = '15';
   function renderAj() {
     const c = cfg();
     const f = (k, label, ph, type = 'text') => `<label class="field"><span>${label}</span><input data-cfg="${k}" value="${esc(c[k] || '')}" placeholder="${ph}" inputmode="${type === 'num' ? 'decimal' : 'text'}"></label>`;
@@ -1121,9 +1121,9 @@
     if (t.id === 'cal-pick') { openMonthPicker(); return; }
     if (t.id === 'trip-open') { openTrip(); return; }
     if (t.dataset.wa) { openWA(t.dataset.wa); return; }
-    if (WA && t.dataset.wmode) { WA.mode = t.dataset.wmode; drawWA(); return; }
+    if (WA && t.dataset.wmode) { if (document.activeElement) document.activeElement.blur(); WA.mode = t.dataset.wmode; WA.edited = false; drawWA(); return; }
     if (WA && t.dataset.wmini) { WA.m = new Date(WA.m.getFullYear(), WA.m.getMonth() + Number(t.dataset.wmini), 1); drawWA(); return; }
-    if (WA && t.dataset.wpick) { const f = t.dataset.wpick, i = WA.days.indexOf(f); if (i >= 0) WA.days.splice(i, 1); else WA.days.push(f); drawWA(); return; }
+    if (WA && t.dataset.wpick) { const f = t.dataset.wpick, i = WA.days.indexOf(f); if (i >= 0) WA.days.splice(i, 1); else WA.days.push(f); WA.edited = false; drawWA(); return; }
     if (t.dataset.gotrip) { const dt = parseISO(t.dataset.gotrip); show('cal'); S.month = new Date(dt.getFullYear(), dt.getMonth(), 1); renderCal(); return; }
     if (t.dataset.tripdel) { if (t.dataset.sure) deleteTrip(t.dataset.tripdel); else { t.dataset.sure = '1'; t.textContent = '¿Seguro? Toca otra vez para borrarlo'; } return; }
     if (TRIP && t.id === 'trip-apply') { applyTrip(); return; }
@@ -1177,7 +1177,7 @@
   $('#cam-q').addEventListener('input', (e) => { S.camQ = e.target.value; renderCam(); });
   document.addEventListener('input', (e) => {
     if (FIND && e.target.id === 'find-q') { FIND.q = e.target.value; drawFind(); }
-    if (WA && e.target.id === 'wa-eur') { WA.eur = e.target.value; drawWA(); }
+    if (WA && e.target.id === 'wa-eur') { WA.eur = e.target.value; WA.edited = false; drawWA(); }
     if (WA && e.target.id === 'wa-txt') { WA.edited = true; $('#wa-go').href = 'https://wa.me/?text=' + encodeURIComponent(e.target.value); }
   });
   document.addEventListener('change', (e) => {
