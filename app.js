@@ -54,6 +54,10 @@
       return m ? { base: m[1], f: m[2] === 'F' } : { base: t.toUpperCase(), f: false };
     });
   }
+  // ¿lleva F este turno ese día? Las noches (acaban al día siguiente) son festivas si lo es el día SIGUIENTE; el resto, si lo es ese día
+  const cruzaDia = (base) => { const c = info(base); return !!(c.inicio && c.fin && c.fin <= c.inicio); };
+  const festFor = (base, f) => cruzaDia(base) ? isSunOrFest(iso(addDays(parseISO(f), 1))) : isSunOrFest(f);
+  const diaFestivo = (f) => isSunOrFest(f) || isSunOrFest(iso(addDays(parseISO(f), 1)));
   const compose = (ps) => ps.map(p => p.base + (p.f && isWorkBase(p.base) ? 'F' : '')).join('-');
   const info = (base) => CODES[base] || { codigo: base, nombre: base, horas: 0, color: '#8590A0', tipo: 'libre' };
   const isWorkBase = (b) => info(b).tipo === 'turno';
@@ -376,7 +380,7 @@
     const d = day(f);
     if (S.brush === '__fb') { save(f, { fb: d.fb ? 0 : 1 }); return; }
     let code = S.brush;
-    if (code && isWorkBase(code) && isSunOrFest(f)) code += 'F';
+    if (code && isWorkBase(code) && festFor(code, f)) code += 'F';
     setLayer(f, S.layer, code);
   }
   /* ───────── compartir el mes como imagen ───────── */
@@ -727,7 +731,7 @@
     for (let dt = a, n = 0; dt <= b && n < 400; dt = addDays(dt, 1), n++) {
       const f = iso(dt);
       if (!PAT.over && day(f).o) continue;
-      out.push({ f, dt, code: compose(parts(patCode(dt)).map(p => ({ base: p.base, f: isSunOrFest(f) }))) });
+      out.push({ f, dt, code: compose(parts(patCode(dt)).map(p => ({ base: p.base, f: festFor(p.base, f) }))) });
     }
     return out;
   }
@@ -776,7 +780,7 @@
   function openEditor(f, focus) {
     const d = day(f), dt = parseISO(f);
     const layer = S.view === 'cal' ? S.layer : 'real';
-    ED = { prevF: Object.fromEntries(parts(codeIn(d, layer)).map(p => [p.base, p.f])), f, layer, sel: parts(codeIn(d, layer)).map(p => p.base), fest: parts(codeIn(d, layer)).some(p => p.f) || (!codeIn(d, layer) && isSunOrFest(f)), fb: !!d.fb, im: !!d.im, n: d.n || '', c: d.c || '', pd: !!d.pd, pm: d.pm || '', vj: d.vj || '', eu: d.eu || 0, sw: d.sw || '', mode: d.sw ? 'dia' : d.eu ? 'dinero' : 'nada' };
+    ED = { prevF: Object.fromEntries(parts(codeIn(d, layer)).map(p => [p.base, p.f])), f, layer, sel: parts(codeIn(d, layer)).map(p => p.base), fest: parts(codeIn(d, layer)).some(p => p.f) || diaFestivo(f), fb: !!d.fb, im: !!d.im, n: d.n || '', c: d.c || '', pd: !!d.pd, pm: d.pm || '', vj: d.vj || '', eu: d.eu || 0, sw: d.sw || '', mode: d.sw ? 'dia' : d.eu ? 'dinero' : 'nada' };
     const names = [...new Set(Object.values(MAP).map(x => x.c).filter(Boolean))].sort();
     const sh = $('#sheet');
     sh.innerHTML = `<div class="ed-head"><div class="grab"></div>
@@ -862,11 +866,11 @@
       <div class="codes" style="margin:0">${opts.map(o => `<button type="button" class="code-btn" data-swc="${esc(o)}" aria-pressed="${o === ED.swc}" style="background:${bg(o)};--cc:${info(parts(o)[0].base).color}">${esc(o)}</button>`).join('')}</div></div>
       <div class="muted" style="font-size:.85rem">Al guardar se actualizan los dos días en el calendario real.</div>`;
   }
-  // La F de festivo: los turnos que ya la llevaban la conservan (p. ej. la noche del sábado);
-  // los nuevos solo la llevan si el día es domingo o festivo
+  // La F de festivo: si ya había turnos con F, cada uno conserva la suya; si no, en días de fin de semana o festivo
+  // la F va por turno (noche: si el día siguiente es festivo; resto: si lo es ese día); en otro día, si se activa a mano, a todos
   function edCode() {
     const prev = ED.prevF || {}, any = Object.values(prev).some(Boolean);
-    return compose(ED.sel.map(b => ({ base: b, f: ED.fest && (b in prev ? (any ? prev[b] : true) : (!any || isSunOrFest(ED.f))) })));
+    return compose(ED.sel.map(b => ({ base: b, f: ED.fest && (any && b in prev ? prev[b] : diaFestivo(ED.f) ? festFor(b, ED.f) : true) })));
   }
   function closeEditor() { PAT = null; MP = null; TRIP = null; FIND = null; WA = null; closeSheet(); }
   function closeSheet() { $('#sheet').classList.remove('on'); $('#scrim').classList.remove('on'); ED = null; if (S.reloadPending) setTimeout(S.reloadPending, 300); }
@@ -879,7 +883,7 @@
         const realNuevo = ED.layer === 'real' ? code : (!d.r || d.r === d.o ? code : d.r);
         over[ED.f] = { r: realNuevo, o: ED.layer === 'orig' ? code : d.o, fb: ED.fb ? 1 : 0 };
         const sw = ED.mode === 'dia' && $('#ed-sw').value && $('#ed-sw').value !== ED.f ? $('#ed-sw').value : '';
-        if (sw && ED.swc) over[sw] = { r: compose(parts(ED.swc).map(p => ({ base: p.base, f: isSunOrFest(sw) }))) };
+        if (sw && ED.swc) over[sw] = { r: compose(parts(ED.swc).map(p => ({ base: p.base, f: festFor(p.base, sw) }))) };
         // solo los problemas nuevos: lo que ya estaba así (p. ej. Fibao al salir de noche) no se vuelve a avisar
         const antes = {}; Object.keys(over).forEach(k => { antes[k] = {}; });
         const ya = new Set(avisosDescanso(antes));
@@ -912,7 +916,7 @@
     if (ED.sw && ED.sw !== sw && day(ED.sw).sw === ED.f) save(ED.sw, { sw: '' });
     if (sw) {
       const sel = ED.swc || '';
-      const code2 = compose(parts(sel).map(p => ({ base: p.base, f: isSunOrFest(sw) })));
+      const code2 = compose(parts(sel).map(p => ({ base: p.base, f: festFor(p.base, sw) })));
       save(sw, { r: code2, c: ED.c, sw: ED.f });
     }
     toast(sw ? 'Guardados los dos días' : cerrado ? 'Cambio cerrado y guardado' : 'Guardado');
@@ -1009,7 +1013,7 @@
         if (!isWorkBase(p.base)) return;
         const h = (num(info(p.base).horas) || 0) + dstAdj(p.base, f);
         if (p.base === 'N') ms[dt.getMonth()].n += h;
-        if (p.f || isSunOrFest(f)) ms[dt.getMonth()].f += h;
+        if (p.f || festFor(p.base, f)) ms[dt.getMonth()].f += h;
       });
     }
     const T = ms.reduce((s, m) => ({ n: s.n + m.n, f: s.f + m.f }), { n: 0, f: 0 });
@@ -1018,7 +1022,7 @@
     let h = `<div class="section"><h3>Complementos ${y}</h3><div class="card"><table class="comp"><thead><tr><th></th><th>Noche</th><th>Festivo</th>${hasE ? '<th>Estimado</th>' : ''}</tr></thead><tbody>`;
     ms.forEach((m, i) => { if (m.n || m.f) h += `<tr><td>${cap(MESES[i])}</td><td>${fmtH(m.n)} h</td><td>${fmtH(m.f)} h</td>${hasE ? '<td>' + fmtE(eur(m)) + '</td>' : ''}</tr>`; });
     h += `</tbody><tfoot><tr><td>Total</td><td>${fmtH(T.n)} h</td><td>${fmtH(T.f)} h</td>${hasE ? '<td>' + fmtE(eur(T)) + '</td>' : ''}</tr></tfoot></table>`;
-    h += `<p class="muted" style="margin:8px 0 0;font-size:.85rem">${hasE ? 'Estimación con tus importes por hora (' + (eN ? fmtE(eN) + ' noche' : '') + (eN && eF ? ' · ' : '') + (eF ? fmtE(eF) + ' festivo' : '') + '). Compárala con la nómina: se cobra con uno o dos meses de retraso.' : 'Pon en Ajustes cuánto te pagan por hora de noche y de festivo y aquí verás lo que deberías cobrar.'} Cuenta como festivo todo turno en domingo o festivo.</p>`;
+    h += `<p class="muted" style="margin:8px 0 0;font-size:.85rem">${hasE ? 'Estimación con tus importes por hora (' + (eN ? fmtE(eN) + ' noche' : '') + (eN && eF ? ' · ' : '') + (eF ? fmtE(eF) + ' festivo' : '') + '). Compárala con la nómina: se cobra con uno o dos meses de retraso.' : 'Pon en Ajustes cuánto te pagan por hora de noche y de festivo y aquí verás lo que deberías cobrar.'} Cuenta como festivo un turno de mañana o tarde en domingo o festivo, y una noche si el día siguiente es domingo o festivo.</p>`;
     return h + '</div></div>';
   }
   function monthChart(st) {
@@ -1146,7 +1150,7 @@
 
   /* ───────── Ajustes ───────── */
   // debe coincidir con VERSION de sw.js (turnos-vNN)
-  const APP_VERSION = '23';
+  const APP_VERSION = '24';
   function renderAj() {
     const c = cfg();
     const f = (k, label, ph, type = 'text') => `<label class="field"><span>${label}</span><input data-cfg="${k}" value="${esc(c[k] || '')}" placeholder="${ph}" inputmode="${type === 'num' ? 'decimal' : 'text'}"></label>`;
@@ -1370,7 +1374,7 @@
       const cc = codeIn(d, ED.layer);
       ED.sel = parts(cc).map(p => p.base);
       ED.prevF = Object.fromEntries(parts(cc).map(p => [p.base, p.f]));
-      ED.fest = parts(cc).some(p => p.f) || (!cc && isSunOrFest(ED.f));
+      ED.fest = parts(cc).some(p => p.f) || diaFestivo(ED.f);
       $('#ed-fest').checked = ED.fest;
       document.querySelectorAll('[data-ly]').forEach(b => b.setAttribute('aria-pressed', b.dataset.ly === ED.layer));
       drawCodes(); return;
