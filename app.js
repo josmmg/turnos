@@ -470,26 +470,31 @@
   const peticiones = (d) => { try { const v = JSON.parse(d.pt || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
   function petTxt(p, ref) {
     const dt = parseISO(p.d), cuando = dt.getDate() + ' ' + MESES_C[dt.getMonth()];
-    const como = p.m === 'dev' ? (p.o && p.o.length ? 'le ofreces ' + p.o.map(f => diaTxt(parseISO(f), parseISO(ref))).join(', ') : 'con devolución') : p.m === 'pago' ? (p.e ? 'pagándolo, ' + fmtE(p.e) : 'pagándolo') : 'a convenir';
-    return 'Pedido ' + (p.a ? 'a ' + p.a + ' ' : '') + 'el ' + cuando + ' · ' + como;
+    const como = p.m === 'dev' ? (p.o && p.o.length ? 'le ofreces ' + p.o.map(s => ofertaTxt(s, parseISO(ref))).join(', ').replace(/, ([^,]*)$/, ' o $1') : 'con devolución') : p.m === 'pago' ? (p.e ? 'pagándolo, ' + fmtE(p.e) : 'pagándolo') : 'a convenir';
+    return 'Pedido ' + (p.a ? 'a <b>' + esc(p.a) + '</b> ' : '') + 'el ' + cuando + ' · ' + esc(como);
   }
   function apuntarPeticion() {
     const e = parseFloat(String(WA.eur).replace(',', '.'));
-    const p = { a: ($('#wa-a').value || '').trim().slice(0, 40), d: iso(new Date()), m: WA.mode };
-    if (WA.mode === 'dev' && WA.days.length) p.o = WA.days.slice().sort();
+    const p = { a: String(WA.a || $('#wa-a').value || '').trim().slice(0, 40), d: iso(new Date()), m: WA.mode };
+    if (WA.mode === 'dev' && WA.days.length) p.o = ofertas();
     if (WA.mode === 'pago' && isFinite(e) && e > 0) p.e = e;
     const list = peticiones(day(WA.f)).concat(p).slice(-6);
-    const f = WA.f;
-    setTimeout(() => { save(f, { pt: JSON.stringify(list) }); closeEditor(); toast('Apuntado en «Por negociar»' + (p.a ? ': pedido a ' + p.a : '')); }, 400);
+    save(WA.f, { pt: JSON.stringify(list) });
+    toast('Apuntado en «Por negociar»' + (p.a ? ': pedido a ' + p.a : ''));
+    setTimeout(closeEditor, 400);
   }
   let WA = null;
+  // «2026-11-22:M» → «la mañana del domingo 22»; sin turno → «un turno el domingo 22»
+  const ofertaTxt = (s, ref) => { const [f, t] = String(s).split(':'), dt = parseISO(f); return (t ? 'la ' + shortName(t).toLowerCase() + ' del ' : 'un turno el ') + diaTxt(dt, ref); };
+  const ofertas = () => WA.days.slice().sort().map(f => WA.turno[f] ? f + ':' + WA.turno[f] : f);
   function mensajeCambio() {
     const d = day(WA.f), dt = parseISO(WA.f), c = real(d);
     const turno = parts(c).filter(p => isWorkBase(p.base)).map(p => shortName(p.base).toLowerCase()).join(' y ') || 'turno';
     let t = '¡Hola! ¿Me podrías hacer la ' + turno + ' del ' + diaTxt(dt) + '?';
     if (WA.mode === 'dev') {
-      const ds = WA.days.slice().sort().map(parseISO);
-      t += ds.length ? ' A cambio te hago yo un turno ' + (ds.length === 1 ? 'el ' : 'el día que prefieras: ') + ds.map(x => diaTxt(x, dt)).join(', ').replace(/, ([^,]*)$/, ' o $1') + '.' : ' A cambio te hago yo un turno el día que te venga bien.';
+      const of = ofertas();
+      t += !of.length ? ' A cambio te hago yo un turno el día que te venga bien.'
+        : ' A cambio te hago yo ' + of.map(s => ofertaTxt(s, dt)).join(', ').replace(/, ([^,]*)$/, ' o $1') + (of.length > 1 ? ', lo que prefieras.' : '.');
     } else if (WA.mode === 'pago') {
       const e = parseFloat(String(WA.eur).replace(',', '.'));
       t += isFinite(e) && e > 0 ? ' Te lo pagaría: ' + fmtE(e) + '.' : ' Te lo pagaría, dime cuánto.';
@@ -498,7 +503,7 @@
   }
   function openWA(f) {
     PAT = null; MP = null; ED = null; TRIP = null; FIND = null;
-    WA = { f, mode: 'dev', days: [], eur: '', m: new Date(parseISO(f).getFullYear(), parseISO(f).getMonth(), 1), edited: false };
+    WA = { f, mode: 'dev', days: [], turno: {}, a: '', eur: '', m: new Date(parseISO(f).getFullYear(), parseISO(f).getMonth(), 1), edited: false };
     const dt = parseISO(f);
     $('#sheet').innerHTML = `<div class="grab"></div><h2>Pedir el cambio</h2>
       <p style="margin:6px 0 0">${fechaLarga(dt)} ${pill(real(day(f)))}</p>
@@ -528,7 +533,12 @@
         html += `<button type="button" class="mini-d${WA.days.includes(f) ? ' sel' : ''}${self ? ' self' : ''}${d.pd ? ' pendday' : ''}${d.vj ? ' tripday' : ''}${isSunOrFest(f) ? ' fest' : ''}" ${self ? 'disabled' : `data-wpick="${f}"`} aria-pressed="${WA.days.includes(f)}" aria-label="${fechaLarga(dt)}: ${esc(c || 'sin turno')}">
           <i>${dt.getDate()}</i><b style="${c ? 'background:' + bg(c) : ''}">${esc(c) || '·'}</b></button>`;
       }
-      $('#wa-mini').innerHTML = html + '</div>' + (WA.days.length ? `<p class="muted" style="margin:6px 4px 0;font-size:.85rem">Elegidos: ${WA.days.slice().sort().map(f => diaTxt(parseISO(f), parseISO(WA.f))).join(', ')}</p>` : '');
+      const tOpts = Object.keys(CODES).filter(b => isWorkBase(b) && info(b).inicio);
+      $('#wa-mini').innerHTML = html + '</div>' + (WA.days.length ? '<div class="wa-of">' + WA.days.slice().sort().map(f => {
+        const dt = parseISO(f), mine = real(day(f));
+        return `<div class="wa-row"><span><b>${cap(DIAS[dt.getDay()])} ${dt.getDate()}</b> ${MESES_C[dt.getMonth()]}<small>tú tienes ${mine ? pill(mine) : 'nada'}</small></span>
+          <span class="seg" role="group" aria-label="Turno que ofreces el ${dt.getDate()}"><button type="button" data-wturno="${f}|" aria-pressed="${!WA.turno[f]}">Cualquiera</button>${tOpts.map(b => `<button type="button" data-wturno="${f}|${b}" aria-pressed="${WA.turno[f] === b}">${esc(b)}</button>`).join('')}</span></div>`;
+      }).join('') + '</div>' : '');
     }
     if (!WA.edited) $('#wa-txt').value = mensajeCambio();
     $('#wa-go').href = 'https://wa.me/?text=' + encodeURIComponent($('#wa-txt').value);
@@ -1075,7 +1085,7 @@
     let html = q ? '' : `<div class="h3row"><h3>Por negociar${pend.length ? ' · ' + pend.length : ''}</h3><button type="button" class="btn ghost" id="trip-open" style="min-height:38px;padding:0 12px;font-size:.9rem">Planificar un viaje</button></div>`;
     if (!q) html += pend.length ? '<div class="card" style="padding:4px 16px">' + pend.map(x => `
       <button class="chg" data-edit="${x.f}" data-focus="c"><span class="dt">${x.dt.getDate()} ${MESES_C[x.dt.getMonth()]}<small>${DIAS[x.dt.getDay()]}${x.dt.getFullYear() !== y ? ' ' + x.dt.getFullYear() : ''}</small></span>
-      <span><span class="pills">${pill(real(x.d))}${x.f < today ? '<span class="muted" style="font-size:.8rem">ya pasó</span>' : ''}</span><span class="who">${esc(x.d.pm || 'Sin motivo apuntado')}</span>${peticiones(x.d).slice(-2).map(p => `<span class="pet">${esc(petTxt(p, x.f))}</span>`).join('')}</span>
+      <span><span class="pills">${pill(real(x.d))}${x.f < today ? '<span class="muted" style="font-size:.8rem">ya pasó</span>' : ''}</span><span class="who">${esc(x.d.pm || 'Sin motivo apuntado')}</span>${peticiones(x.d).slice(-2).map(p => `<span class="pet">${petTxt(p, x.f)}</span>`).join('')}</span>
       <span class="resolve">Resolver</span></button>${x.f >= today ? `<button type="button" class="wa" data-wa="${x.f}">${peticiones(x.d).length ? 'Pedírselo a otra por WhatsApp' : 'Pedir el cambio por WhatsApp'}</button>` : ''}`).join('') + '</div>'
       : '<div class="empty-note">No tienes días por negociar. Para apuntar uno, abre el día y activa «Necesito cambiar este día».</div>';
     if (!q) {
@@ -1122,7 +1132,7 @@
 
   /* ───────── Ajustes ───────── */
   // debe coincidir con VERSION de sw.js (turnos-vNN)
-  const APP_VERSION = '16';
+  const APP_VERSION = '17';
   function renderAj() {
     const c = cfg();
     const f = (k, label, ph, type = 'text') => `<label class="field"><span>${label}</span><input data-cfg="${k}" value="${esc(c[k] || '')}" placeholder="${ph}" inputmode="${type === 'num' ? 'decimal' : 'text'}"></label>`;
@@ -1314,6 +1324,7 @@
     if (WA && t.id === 'wa-go') { apuntarPeticion(); return; }
     if (WA && t.dataset.wmode) { if (document.activeElement) document.activeElement.blur(); WA.mode = t.dataset.wmode; WA.edited = false; drawWA(); return; }
     if (WA && t.dataset.wmini) { WA.m = new Date(WA.m.getFullYear(), WA.m.getMonth() + Number(t.dataset.wmini), 1); drawWA(); return; }
+    if (WA && t.dataset.wturno !== undefined) { const [f, b] = t.dataset.wturno.split('|'); if (b) WA.turno[f] = b; else delete WA.turno[f]; WA.edited = false; drawWA(); return; }
     if (WA && t.dataset.wpick) { const f = t.dataset.wpick, i = WA.days.indexOf(f); if (i >= 0) WA.days.splice(i, 1); else WA.days.push(f); WA.edited = false; drawWA(); return; }
     if (t.dataset.gotrip) { const dt = parseISO(t.dataset.gotrip); show('cal'); S.month = new Date(dt.getFullYear(), dt.getMonth(), 1); renderCal(); return; }
     if (t.dataset.tripdel) { if (t.dataset.sure) deleteTrip(t.dataset.tripdel); else { t.dataset.sure = '1'; t.textContent = '¿Seguro? Toca otra vez para borrarlo'; } return; }
@@ -1368,6 +1379,7 @@
   $('#cam-q').addEventListener('input', (e) => { S.camQ = e.target.value; renderCam(); });
   document.addEventListener('input', (e) => {
     if (FIND && e.target.id === 'find-q') { FIND.q = e.target.value; drawFind(); }
+    if (WA && e.target.id === 'wa-a') { WA.a = e.target.value; }
     if (WA && e.target.id === 'wa-eur') { WA.eur = e.target.value; WA.edited = false; drawWA(); }
     if (WA && e.target.id === 'wa-txt') { WA.edited = true; $('#wa-go').href = 'https://wa.me/?text=' + encodeURIComponent(e.target.value); }
   });
