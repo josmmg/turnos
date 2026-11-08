@@ -61,7 +61,16 @@
   const CASA = 'La casa';
   const isCasa = (c) => String(c || '').trim().toLowerCase() === 'la casa';
   const ICON_CASA = '<svg class="ic-casa" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V8l8-5 8 5v13z"/><path d="M12 8v6M9 11h6" stroke-linecap="round"/><path d="M10 21v-4h4v4"/></svg>';
-  const hoursOf = (code) => parts(code).reduce((s, p) => s + (Number(info(p.base).horas) || 0), 0);
+  // Horas de un código; con la fecha, corrige el cambio de hora: la noche del cambio de octubre dura 1 h más y la de marzo 1 h menos
+  const hoursOf = (code, f) => parts(code).reduce((s, p) => s + (Number(info(p.base).horas) || 0) + (f ? dstAdj(p.base, f) : 0), 0);
+  function dstAdj(base, f) {
+    const c = info(base);
+    if (!c.inicio || !c.fin || !(Number(c.horas) > 0)) return 0;
+    const i = mkInt(parseISO(f), c.inicio, c.fin, '', base, f);
+    const [a1, b1] = c.inicio.split(':').map(Number), [a2, b2] = c.fin.split(':').map(Number);
+    let nominal = (a2 * 60 + b2) - (a1 * 60 + b1); if (nominal <= 0) nominal += 1440;
+    return Math.round((i.end - i.start) / 6e4 - nominal) / 60;
+  }
   const worked = (code) => parts(code).some(p => isWorkBase(p.base));
   const shortName = (b) => ({ M: 'Mañana', T: 'Tarde', N: 'Noche', D: 'Libre', V: 'Vacaciones' }[b] || info(b).nombre);
   function bg(code) {
@@ -226,7 +235,7 @@
     const hm = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
     const nFb = nextOf((c, dd) => !!dd.fb, hm < (cfg().fibao_fin || '14:00') ? 0 : 1);
     const wk0 = addDays(now, -((now.getDay() + 6) % 7));
-    let wkH = 0; for (let i = 0; i < 7; i++) wkH += hoursOf(real(day(iso(addDays(wk0, i)))));
+    let wkH = 0; for (let i = 0; i < 7; i++) { const ff = iso(addDays(wk0, i)); wkH += hoursOf(real(day(ff)), ff); }
     const dayN = (dt) => Math.round((new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5);
     const inDays = (dt, hoy = 'hoy') => { const n = dayN(dt); return n === 0 ? hoy : n === 1 ? 'mañana' : 'en ' + n + ' días'; };
     const diaCorto = (dt) => dayN(dt) === 0 ? 'Hoy' : cap(DIAS[dt.getDay()]) + ' ' + dt.getDate();
@@ -282,7 +291,7 @@
       if (!d) continue;
       const c = real(d), o = d.o || '';
       if (c || o) out.any = true;
-      const hr = hoursOf(c), ho = hoursOf(o);
+      const hr = hoursOf(c, f), ho = hoursOf(o, f);
       out.hours += hr; out.hoursOrig += ho;
       if (f <= today) out.hoursToDate += hr;
       out.months[dt.getMonth()].r += hr; out.months[dt.getMonth()].o += ho;
@@ -299,7 +308,7 @@
       if (o && c !== o) out.cambios++;
       // de dónde sale la diferencia con el cuadrante: [horas, número de cambios] por tipo de compensación
       if ((o && c !== o) || d.eu) {
-        const dh = o ? hoursOf(c) - hoursOf(o) : 0;
+        const dh = o ? hoursOf(c, f) - hoursOf(o, f) : 0;
         const k = d.eu > 0 ? 'cob' : d.eu < 0 ? 'pag' : d.sw ? 'dia' : isCasa(d.c) ? 'casa' : d.c ? 'pend' : 'sin';
         out.por[k][0] += dh; out.por[k][1]++;
       }
@@ -450,7 +459,7 @@
     const s = {};
     Object.values(MAP).forEach(d => {
       if (!d.c || d.eu || !d.o || real(d) === d.o) return;
-      s[d.c] = (s[d.c] || 0) + hoursOf(real(d)) - hoursOf(d.o);
+      s[d.c] = (s[d.c] || 0) + hoursOf(real(d), d.f) - hoursOf(d.o, d.f);
     });
     return Object.keys(s).filter(n => Math.abs(s[n]) > 0.01).sort((a, b) => (isCasa(b) - isCasa(a)) || Math.abs(s[b]) - Math.abs(s[a])).map(n => [n, s[n]]);
   }
@@ -812,7 +821,7 @@
     if (ED.warned) { ED.warned = false; const bx = $('#ed-warn'); if (bx) { bx.hidden = true; $('#ed-save').textContent = 'Guardar'; } }
     const code = edCode();
     $('#ed-prev').innerHTML = code ? pill(code, 'pill') + ' <span style="font-size:1rem;color:var(--ink-2)">' + esc(parts(code).map(p => info(p.base).nombre).join(' + ')) + '</span>' : '<span class="muted" style="font-size:1rem">Sin turno</span>';
-    $('#ed-hours').textContent = code ? fmtH(hoursOf(code)) + ' h' : '';
+    $('#ed-hours').textContent = code ? fmtH(hoursOf(code, ED.f)) + ' h' + (hoursOf(code, ED.f) !== hoursOf(code) ? ' (cambio de hora)' : '') : '';
   }
   // Otro día del intercambio: calendario pequeño con los turnos de cada día y el turno que hará ese día
   function drawMini() {
@@ -993,7 +1002,7 @@
       const f = iso(dt), d = MAP[f]; if (!d) continue;
       parts(real(d)).forEach(p => {
         if (!isWorkBase(p.base)) return;
-        const h = num(info(p.base).horas);
+        const h = (num(info(p.base).horas) || 0) + dstAdj(p.base, f);
         if (p.base === 'N') ms[dt.getMonth()].n += h;
         if (p.f || isSunOrFest(f)) ms[dt.getMonth()].f += h;
       });
@@ -1068,7 +1077,7 @@
       const f = iso(dt), d = MAP[f];
       if (!d) continue;
       if (d.pd && y !== new Date().getFullYear()) pend.push({ f, dt, d });
-      if ((d.o && real(d) !== d.o) || d.eu) list.push({ f, dt, d, delta: d.o ? hoursOf(real(d)) - hoursOf(d.o) : 0 });
+      if ((d.o && real(d) !== d.o) || d.eu) list.push({ f, dt, d, delta: d.o ? hoursOf(real(d), f) - hoursOf(d.o, f) : 0 });
     }
     // año actual: también los días por negociar de los años siguientes (un viaje en enero, por ejemplo)
     if (y === new Date().getFullYear()) Object.keys(MAP).filter(f => MAP[f].pd && f.slice(0, 4) >= String(y)).sort().forEach(f => pend.push({ f, dt: parseISO(f), d: MAP[f] }));
@@ -1132,7 +1141,7 @@
 
   /* ───────── Ajustes ───────── */
   // debe coincidir con VERSION de sw.js (turnos-vNN)
-  const APP_VERSION = '17';
+  const APP_VERSION = '18';
   function renderAj() {
     const c = cfg();
     const f = (k, label, ph, type = 'text') => `<label class="field"><span>${label}</span><input data-cfg="${k}" value="${esc(c[k] || '')}" placeholder="${ph}" inputmode="${type === 'num' ? 'decimal' : 'text'}"></label>`;
