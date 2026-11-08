@@ -487,7 +487,9 @@
     const p = { a: String(WA.a || $('#wa-a').value || '').trim().slice(0, 40), d: iso(new Date()), m: WA.mode };
     if (WA.mode === 'dev' && WA.days.length) p.o = ofertas();
     if (WA.mode === 'pago' && isFinite(e) && e > 0) p.e = e;
-    const list = peticiones(day(WA.f)).concat(p).slice(-6);
+    // si se repite la misma petición (p. ej. dos toques), solo se apunta una vez
+    const prev = peticiones(day(WA.f)).filter(q => JSON.stringify(Object.assign({}, q, { d: '' })) !== JSON.stringify(Object.assign({}, p, { d: '' })));
+    const list = prev.concat(p).slice(-8);
     save(WA.f, { pt: JSON.stringify(list) });
     toast('Apuntado en «Por negociar»' + (p.a ? ': pedido a ' + p.a : ''));
     setTimeout(closeEditor, 400);
@@ -790,6 +792,7 @@
       <h3 class="ed-group">Cambio de turno</h3>
       <div class="row-toggle"><label for="ed-pd">Necesito cambiar este día<small>Lo apunta en «Por negociar», en la pantalla Cambios</small></label><input type="checkbox" class="switch pd" id="ed-pd" ${ED.pd ? 'checked' : ''}></div>
       <label class="field" id="ed-pm-wrap" ${ED.pd ? '' : 'hidden'}><span>Para qué lo necesitas</span><input id="ed-pm" value="${esc(ED.pm)}" placeholder="Ej.: viaje, boda, médico…" autocomplete="off"></label>
+      ${peticiones(d).length ? `<div class="pet-box" id="ed-pet"><span>Peticiones apuntadas</span>${peticiones(d).map(p => `<span class="pet">${petTxt(p, f)}</span>`).join('')}<button type="button" class="btn ghost" data-petclear="${f}" style="min-height:36px;padding:0 12px;margin-top:8px">Borrar estas peticiones</button></div>` : ''}
       <label class="field"><span>Cambio con</span><input id="ed-c" list="ed-names" value="${esc(ED.c)}" placeholder="Nombre de la compañera" autocomplete="off"><datalist id="ed-names">${names.map(n => `<option value="${esc(n)}">`).join('')}</datalist></label>
       <div class="quick"><button type="button" data-quickc="${CASA}">${ICON_CASA}La casa</button><small>Para cambios impuestos por la supervisora o por una formación</small></div>
       <div class="field"><span>Cómo se compensa</span><div class="seg wide" role="group" aria-label="Cómo se compensa">
@@ -1094,7 +1097,7 @@
     let html = q ? '' : `<div class="h3row"><h3>Por negociar${pend.length ? ' · ' + pend.length : ''}</h3><button type="button" class="btn ghost" id="trip-open" style="min-height:38px;padding:0 12px;font-size:.9rem">Planificar un viaje</button></div>`;
     if (!q) html += pend.length ? '<div class="card" style="padding:4px 16px">' + pend.map(x => `
       <button class="chg" data-edit="${x.f}" data-focus="c"><span class="dt">${x.dt.getDate()} ${MESES_C[x.dt.getMonth()]}<small>${DIAS[x.dt.getDay()]}${x.dt.getFullYear() !== y ? ' ' + x.dt.getFullYear() : ''}</small></span>
-      <span><span class="pills">${pill(real(x.d))}${x.f < today ? '<span class="muted" style="font-size:.8rem">ya pasó</span>' : ''}</span><span class="who">${esc(x.d.pm || 'Sin motivo apuntado')}</span>${peticiones(x.d).slice(-2).map(p => `<span class="pet">${petTxt(p, x.f)}</span>`).join('')}</span>
+      <span><span class="pills">${pill(real(x.d))}${x.f < today ? '<span class="muted" style="font-size:.8rem">ya pasó</span>' : ''}</span><span class="who">${esc(x.d.pm || 'Sin motivo apuntado')}</span>${peticiones(x.d).map(p => `<span class="pet">${petTxt(p, x.f)}</span>`).join('')}</span>
       <span class="resolve">Resolver</span></button>${x.f >= today ? `<button type="button" class="wa" data-wa="${x.f}">${peticiones(x.d).length ? 'Pedírselo a otra por WhatsApp' : 'Pedir el cambio por WhatsApp'}</button>` : ''}`).join('') + '</div>'
       : '<div class="empty-note">No tienes días por negociar. Para apuntar uno, abre el día y activa «Necesito cambiar este día».</div>';
     if (!q) {
@@ -1141,7 +1144,7 @@
 
   /* ───────── Ajustes ───────── */
   // debe coincidir con VERSION de sw.js (turnos-vNN)
-  const APP_VERSION = '18';
+  const APP_VERSION = '19';
   function renderAj() {
     const c = cfg();
     const f = (k, label, ph, type = 'text') => `<label class="field"><span>${label}</span><input data-cfg="${k}" value="${esc(c[k] || '')}" placeholder="${ph}" inputmode="${type === 'num' ? 'decimal' : 'text'}"></label>`;
@@ -1330,6 +1333,7 @@
     if (t.id === 'cal-share') { exportMes().catch(err => toast('No se ha podido crear la imagen: ' + err.message)); return; }
     if (t.id === 'trip-open') { openTrip(); return; }
     if (t.dataset.wa) { openWA(t.dataset.wa); return; }
+    if (t.dataset.petclear && ED) { save(t.dataset.petclear, { pt: '' }); $('#ed-pet').remove(); toast('Peticiones borradas'); return; }
     if (WA && t.id === 'wa-go') { apuntarPeticion(); return; }
     if (WA && t.dataset.wmode) { if (document.activeElement) document.activeElement.blur(); WA.mode = t.dataset.wmode; WA.edited = false; drawWA(); return; }
     if (WA && t.dataset.wmini) { WA.m = new Date(WA.m.getFullYear(), WA.m.getMonth() + Number(t.dataset.wmini), 1); drawWA(); return; }
