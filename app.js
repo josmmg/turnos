@@ -45,6 +45,18 @@
   let MAP = {};          // fecha → día
   let CODES = {};        // código base → info
   let FEST = {};         // fecha → nombre
+  // Festivos de Andalucía y locales de Granada que la hoja aún no tiene (la hoja manda si los trae)
+  const FEST_BASE = {
+    '2026-01-01': 'Año Nuevo', '2026-01-02': 'Toma de Granada', '2026-01-06': 'Reyes', '2026-02-28': 'Día de Andalucía',
+    '2026-04-02': 'Jueves Santo', '2026-04-03': 'Viernes Santo', '2026-05-01': 'Fiesta del Trabajo', '2026-06-04': 'Corpus Christi',
+    '2026-08-15': 'Asunción', '2026-10-12': 'Fiesta Nacional', '2026-11-02': 'Todos los Santos (trasladado)',
+    '2026-12-07': 'Constitución (trasladado)', '2026-12-08': 'Inmaculada', '2026-12-25': 'Navidad'
+  };
+  // Nómina del SAS (comprobado con 8 complementarias de Mari Luz): se paga el CUADRANTE, hora a hora por día de calendario.
+  // Festivos especiales: se pagan al doble. Vistos: 25-12, 6-1 y 28-2 (el 8-12, Semana Santa y el 1-5 se pagan como normales).
+  const FEST_ESPECIAL = ['12-25', '01-06', '02-28'];
+  // Tarifas por año (€/h noche, festiva, festiva especial; plus de turnos al mes). Ajustes puede cambiar las del año en curso.
+  const TARIFAS = { 2025: { n: 4.73, f: 9.41, e: 18.82, t: 120.76 }, 2026: { n: 4.80, f: 9.55, e: 19.10, t: 122.57 } };
 
   /* ───────── modelo de códigos ───────── */
   // "MF-N" → [{base:'M',f:true},{base:'N',f:false}]; admite códigos antiguos Md, Ti, Td/Ni…
@@ -103,6 +115,7 @@
     // Formación: si la hoja aún no tiene el código, la app lo añade con 7 h
     if (!CODES.FOR) CODES.FOR = { codigo: 'FOR', nombre: 'Formación', horas: 7, color: '#E64980', tipo: 'turno', inicio: '', fin: '' };
     (S.data.festivos || []).forEach(x => { FEST[x.f] = x.nombre; });
+    Object.keys(FEST_BASE).forEach(f => { if (!FEST[f]) FEST[f] = FEST_BASE[f]; });
     (S.data.dias || []).forEach(d => { MAP[d.f] = Object.assign({}, d); });
     Object.keys(S.pending).forEach(f => { MAP[f] = Object.assign({}, MAP[f] || { f }, S.pending[f]); clean(MAP[f]); });
   }
@@ -1004,26 +1017,58 @@
     return h + '</div></div>';
   }
 
-  /* ───────── complementos estimados (nocturnidad y festivos) ───────── */
-  function complementos(y) {
-    const eN = num(cfg().eur_noche_h), eF = num(cfg().eur_festivo_h);
-    const ms = Array.from({ length: 12 }, () => ({ n: 0, f: 0 }));
-    for (let dt = new Date(y, 0, 1); dt.getFullYear() === y; dt = addDays(dt, 1)) {
+  /* ───────── complementos de nómina (noches y festivos) ───────── */
+  // Horas que paga la nómina en cada mes del año y: cuadrante (o lo real si no hay cuadrante), hora a hora por día de calendario
+  function horasNomina(y) {
+    const ms = Array.from({ length: 12 }, () => ({ n: 0, f: 0, e: 0, dias: 0 }));
+    for (let dt = new Date(y - 1, 11, 31); dt <= new Date(y, 11, 31); dt = addDays(dt, 1)) {
       const f = iso(dt), d = MAP[f]; if (!d) continue;
-      parts(real(d)).forEach(p => {
+      const code = d.o || d.r || '';
+      let trabaja = false;
+      parts(code).forEach(p => {
         if (!isWorkBase(p.base)) return;
-        const h = (num(info(p.base).horas) || 0) + dstAdj(p.base, f);
-        if (p.base === 'N') ms[dt.getMonth()].n += h;
-        if (p.f || festFor(p.base, f)) ms[dt.getMonth()].f += h;
+        const c = info(p.base), noche = cruzaDia(p.base);
+        if (!c.inicio || !c.fin) {               // sin horario (p. ej. formación): todas sus horas, a ese día
+          if (dt.getFullYear() !== y) return;
+          const h = num(c.horas) || 0, m = ms[dt.getMonth()];
+          if (FEST_ESPECIAL.includes(f.slice(5))) m.e += h; else if (isSunOrFest(f)) m.f += h;
+          trabaja = true; return;
+        }
+        const i = mkInt(dt, c.inicio, c.fin, '', p.base, f);
+        for (let t = i.start.getTime(); t < i.end.getTime(); t += 36e5) {
+          const h = new Date(t); if (h.getFullYear() !== y) continue;
+          const hf = iso(h), m = ms[h.getMonth()], dur = Math.min(1, (i.end.getTime() - t) / 36e5);
+          if (noche) m.n += dur;
+          if (FEST_ESPECIAL.includes(hf.slice(5))) m.e += dur; else if (isSunOrFest(hf)) m.f += dur;
+          trabaja = true;
+        }
       });
+      if (trabaja && dt.getFullYear() === y) ms[dt.getMonth()].dias++;
     }
-    const T = ms.reduce((s, m) => ({ n: s.n + m.n, f: s.f + m.f }), { n: 0, f: 0 });
-    if (!T.n && !T.f) return '';
-    const eur = (m) => m.n * eN + m.f * eF, hasE = eN || eF;
-    let h = `<div class="section"><h3>Complementos ${y}</h3><div class="card"><table class="comp"><thead><tr><th></th><th>Noche</th><th>Festivo</th>${hasE ? '<th>Estimado</th>' : ''}</tr></thead><tbody>`;
-    ms.forEach((m, i) => { if (m.n || m.f) h += `<tr><td>${cap(MESES[i])}</td><td>${fmtH(m.n)} h</td><td>${fmtH(m.f)} h</td>${hasE ? '<td>' + fmtE(eur(m)) + '</td>' : ''}</tr>`; });
-    h += `</tbody><tfoot><tr><td>Total</td><td>${fmtH(T.n)} h</td><td>${fmtH(T.f)} h</td>${hasE ? '<td>' + fmtE(eur(T)) + '</td>' : ''}</tr></tfoot></table>`;
-    h += `<p class="muted" style="margin:8px 0 0;font-size:.85rem">${hasE ? 'Estimación con tus importes por hora (' + (eN ? fmtE(eN) + ' noche' : '') + (eN && eF ? ' · ' : '') + (eF ? fmtE(eF) + ' festivo' : '') + '). Compárala con la nómina: se cobra con uno o dos meses de retraso.' : 'Pon en Ajustes cuánto te pagan por hora de noche y de festivo y aquí verás lo que deberías cobrar.'} Cuenta como festivo un turno de mañana o tarde en domingo o festivo, y una noche si el día siguiente es domingo o festivo.</p>`;
+    return ms;
+  }
+  function tarifa(y) {
+    const t = TARIFAS[y] ? Object.assign({}, TARIFAS[y]) : null;
+    const cy = new Date().getFullYear(), eN = num(cfg().eur_noche_h), eF = num(cfg().eur_festivo_h);
+    if (y >= cy && (eN || eF)) {                 // lo que ponga en Ajustes manda en el año en curso y siguientes
+      const r = t || { n: 0, f: 0, e: 0, t: 0 };
+      if (eN) r.n = eN;
+      if (eF) { r.f = eF; r.e = 2 * eF; }
+      return r;
+    }
+    return t;
+  }
+  function complementos(y) {
+    const ms = horasNomina(y), R = tarifa(y);
+    const T = ms.reduce((s, m) => ({ n: s.n + m.n, f: s.f + m.f, e: s.e + m.e }), { n: 0, f: 0, e: 0 });
+    if (!T.n && !T.f && !T.e) return '';
+    const hasE = !!R, hasEsp = T.e > 0;
+    const eur = (m) => m.n * R.n + m.f * R.f + m.e * R.e + (m.dias ? R.t : 0);
+    let h = `<div class="section"><h3>Complementos ${y}</h3><div class="card"><table class="comp"><thead><tr><th>Mes</th><th>Noche</th><th>Festivo</th>${hasEsp ? '<th>Especial</th>' : ''}${hasE ? '<th>Estimado</th>' : ''}</tr></thead><tbody>`;
+    ms.forEach((m, i) => { if (m.n || m.f || m.e) h += `<tr><td>${cap(MESES[i])}</td><td>${fmtH(m.n)} h</td><td>${fmtH(m.f)} h</td>${hasEsp ? '<td>' + fmtH(m.e) + ' h</td>' : ''}${hasE ? '<td>' + fmtE(eur(m)) + '</td>' : ''}</tr>`; });
+    const Tot = ms.reduce((s, m) => s + (hasE && (m.n || m.f || m.e) ? eur(m) : 0), 0);
+    h += `</tbody><tfoot><tr><td>Total</td><td>${fmtH(T.n)} h</td><td>${fmtH(T.f)} h</td>${hasEsp ? '<td>' + fmtH(T.e) + ' h</td>' : ''}${hasE ? '<td>' + fmtE(Tot) + '</td>' : ''}</tr></tfoot></table>`;
+    h += `<p class="muted" style="margin:8px 0 0;font-size:.85rem">Calculado como tu nómina: por el <b>cuadrante</b> (los cambios no cambian lo que cobras) y hora a hora: de una noche, 2 h son del día en que empieza y 8 del siguiente. Festivos especiales (Navidad, Reyes, Día de Andalucía) al doble. Lo de cada mes se cobra en la complementaria del mes siguiente.${hasE ? ' Estimado con ' + fmtE(R.n) + '/h noche · ' + fmtE(R.f) + '/h festiva · ' + fmtE(R.e) + '/h especial · ' + fmtE(R.t) + ' de plus de turnos al mes; no incluye la media de los meses con vacaciones.' : ' Sin tarifas para este año: solo horas.'}</p>`;
     return h + '</div></div>';
   }
   function monthChart(st) {
@@ -1151,7 +1196,7 @@
 
   /* ───────── Ajustes ───────── */
   // debe coincidir con VERSION de sw.js (turnos-vNN)
-  const APP_VERSION = '26';
+  const APP_VERSION = '27';
   function renderAj() {
     const c = cfg();
     const f = (k, label, ph, type = 'text') => `<label class="field"><span>${label}</span><input data-cfg="${k}" value="${esc(c[k] || '')}" placeholder="${ph}" inputmode="${type === 'num' ? 'decimal' : 'text'}"></label>`;
@@ -1168,7 +1213,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${f('aviso_M', 'Antes de la mañana', '', 'num')}${f('aviso_T', 'Antes de la tarde', '', 'num')}${f('aviso_N', 'Antes de la noche', '', 'num')}${f('aviso_FB', 'Antes de Fibao', '', 'num')}</div>
         <h3 style="margin-top:18px">Complementos</h3>
         <p class="muted" style="font-size:.85rem;margin:4px 0 0">Lo que te pagan por cada hora de noche y por cada hora en domingo o festivo. Míralo en tu nómina. Sirve para estimar en Resumen lo que deberías cobrar.</p>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${f('eur_noche_h', '€ por hora de noche', 'Según nómina', 'num')}${f('eur_festivo_h', '€ por hora festiva', 'Según nómina', 'num')}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${f('eur_noche_h', '€ por hora de noche', 'Vacío = 4,80 (SAS 2026)', 'num')}${f('eur_festivo_h', '€ por hora festiva', 'Vacío = 9,55 (SAS 2026)', 'num')}</div>
         <button class="btn wide" id="aj-save" style="margin-top:16px">Guardar ajustes</button>
       </div>
       <div class="section card"><h3>Calendario del iPhone</h3>
