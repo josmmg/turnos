@@ -188,6 +188,7 @@
     libre: { sky: 'linear-gradient(170deg,#FFE7BF 0%,#F4B860 50%,#D98324 100%)', orb: 'radial-gradient(circle at 40% 40%,#FFFBEA,#FFD66B)', glow: 'rgba(255,220,120,.6)', stars: 0 },
     V: { sky: 'linear-gradient(170deg,#D6EEFF 0%,#7DB9F0 50%,#2F6FC4 100%)', orb: 'radial-gradient(circle at 40% 40%,#FFFBEA,#FFE07A)', glow: 'rgba(255,240,170,.6)', stars: 0 },
     comp: { sky: 'linear-gradient(170deg,#FFF3B8 0%,#E8C547 52%,#B38A12 100%)', orb: 'radial-gradient(circle at 40% 40%,#FFFDF0,#FFE680)', glow: 'rgba(255,235,140,.6)', stars: 0 },
+    FB: { sky: 'linear-gradient(170deg,#F6C9A8 0%,#D9785A 50%,#8E3420 100%)', orb: 'radial-gradient(circle at 40% 40%,#FFF4E6,#FFC98F)', glow: 'rgba(255,190,140,.55)', stars: 0 },
     otro: { sky: 'linear-gradient(170deg,#E3E7EE 0%,#9AA6B8 55%,#5B6678 100%)', orb: 'radial-gradient(circle at 40% 40%,#FFFFFF,#E5E9F0)', glow: 'rgba(255,255,255,.4)', stars: 0 }
   };
   function skyFor(code) {
@@ -210,33 +211,58 @@
     const hr = now.getHours();
     $('#greet').textContent = (hr < 13 ? 'Buenos días' : hr < 21 ? 'Buenas tardes' : 'Buenas noches') + (nombre ? ', ' + nombre : '');
     const ps = parts(code);
-    const sky = skyFor(code);
     const ints = intervals(addDays(now, -1), 40);
     const cur = ints.find(i => i.start <= now && now < i.end);
     const next = ints.find(i => i.start > now);
-    let title = ps.length ? ps.map(p => shortName(p.base)).join(' + ') : 'Sin apuntar';
-    let hoursTxt = '';
-    const todayWork = ps.filter(p => isWorkBase(p.base) && info(p.base).inicio);
-    if (todayWork.length) hoursTxt = todayWork.map(p => info(p.base).inicio + '–' + info(p.base).fin).join(' · ');
-    else if (ps.length) hoursTxt = info(ps[0].base).nombre;
-    else hoursTxt = 'Toca para apuntar el turno de hoy';
-    let when = '';
-    if (cur && cur.f !== f) when = 'Saliendo de ' + cur.name.toLowerCase() + ' · termina a las ' + cur.fin;
-    else if (cur) when = 'En turno · termina a las ' + cur.fin;
-    else if (next && iso(next.start) === f) when = cur ? '' : 'Empieza en ' + rel(next.start - now);
-    else if (next) when = 'Próximo: ' + next.name + ' ' + whenLabel(next, now);
+    // La tarjeta habla de UN turno: el que está en curso o, si no, el siguiente. Su color es el de ese turno.
+    const foc = cur || next;
+    const dayN = (dt) => Math.round((new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5);
+    // «Mañana» solo significa «el día siguiente»; el turno se nombra siempre «turno de mañana», nunca «Mañana» a secas
+    const turnoDe = (b) => ({ M: 'Turno de mañana', T: 'Turno de tarde', N: 'Turno de noche', FB: 'Fibao' }[b] || info(b).nombre);
+    const diaRef = (dt) => { const n = dayN(dt), dd = DIAS[dt.getDay()] + ' ' + dt.getDate(); return n === 0 ? 'Hoy, ' + dd : n === 1 ? 'Mañana, ' + dd : n === -1 ? 'Ayer, ' + dd : cap(dd) + (n > 6 ? ' de ' + MESES[dt.getMonth()] : ''); };
+    const hhmm = (dt) => pad(dt.getHours()) + ':' + pad(dt.getMinutes());
+    let kick, head, sub, when = '', sky, fd;
+    if (foc) {
+      fd = foc.f;
+      const fdt = parseISO(fd);
+      sky = SKIES[foc.base] || SKIES.otro;
+      const luego = ints.filter(i => i.f === fd && i.start >= foc.end).map(i => turnoDe(i.base).replace('Turno de ', '').toLowerCase() + ' a las ' + i.ini);
+      if (cur) {
+        kick = 'Ahora estás trabajando';
+        head = turnoDe(cur.base);
+        sub = 'Termina ' + (dayN(cur.end) === 0 ? 'hoy' : 'mañana') + ' a las ' + cur.fin + (dayN(fdt) === -1 ? ' · empezó ayer, ' + DIAS[fdt.getDay()] + ' ' + fdt.getDate() : '');
+        when = 'Te quedan ' + rel(cur.end - now);
+      } else {
+        kick = dayN(fdt) === 0 ? 'Hoy trabajas' : 'Tu próximo turno';
+        head = diaRef(fdt);
+        sub = turnoDe(foc.base) + ' · de ' + foc.ini + ' a ' + foc.fin;
+        when = (dayN(foc.start) >= 2 ? 'Dentro de ' + dayN(foc.start) + ' días' : 'Empieza en ' + rel(foc.start - now)) + ', a las ' + hhmm(foc.start);
+      }
+      if (luego.length) sub += ' · después, ' + luego.join(' y ');
+    } else {
+      fd = f; sky = skyFor(code);
+      kick = 'Hoy'; head = diaRef(now);
+      sub = ps.length ? info(ps[0].base).nombre : 'Toca «Editar» para apuntar el turno de hoy';
+      when = 'Sin turnos apuntados en las próximas semanas';
+    }
+    const fdd = day(fd), fcode = real(fdd);
     const tags = [];
-    if (isSunOrFest(f) && worked(code)) tags.push('<span class="tag">' + (FEST[f] ? esc(FEST[f]) : 'Domingo') + '</span>');
-    else if (FEST[f]) tags.push('<span class="tag">' + esc(FEST[f]) + '</span>');
-    if (d.fb) tags.push('<span class="tag fibao">Fibao ' + esc(cfg().fibao_inicio || '') + '–' + esc(cfg().fibao_fin || '') + '</span>');
-    if (d.c) tags.push('<span class="tag">Cambio con ' + esc(d.c) + '</span>');
-    if (d.im) tags.push('<span class="tag">★ ' + esc(d.n || 'Importante') + '</span>');
-    if (d.pd) tags.push('<span class="tag pend">⇄ Por cambiar' + (d.pm ? ': ' + esc(d.pm) : '') + '</span>');
+    // qué pasa hoy, cuando la tarjeta habla de otro día
+    if (fd !== f && !cur) {
+      const hoyTxt = !ps.length ? '' : worked(code) ? 'Hoy ya terminaste' : (ps[0].base === 'D' ? 'Hoy libras' : 'Hoy: ' + info(ps[0].base).nombre.toLowerCase());
+      if (hoyTxt) tags.push('<span class="tag">' + esc(hoyTxt) + '</span>');
+    }
+    if (isSunOrFest(fd) && worked(fcode)) tags.push('<span class="tag">' + (FEST[fd] ? esc(FEST[fd]) : 'Domingo') + '</span>');
+    else if (FEST[fd]) tags.push('<span class="tag">' + esc(FEST[fd]) + '</span>');
+    if (fdd.fb && (!foc || foc.base !== 'FB')) tags.push('<span class="tag fibao">Fibao ' + esc(cfg().fibao_inicio || '') + '–' + esc(cfg().fibao_fin || '') + '</span>');
+    if (fdd.c) tags.push('<span class="tag">Cambio con ' + esc(dispName(fdd.c)) + '</span>');
+    if (fdd.im) tags.push('<span class="tag">★ ' + esc(fdd.n || 'Importante') + '</span>');
+    if (fdd.pd) tags.push('<span class="tag pend">⇄ Por cambiar' + (fdd.pm ? ': ' + esc(fdd.pm) : '') + '</span>');
     const el = $('#hoy-sky');
     el.innerHTML = `<div class="sky" style="${skyStyle(sky)}"><div class="stars"></div><div class="orb"></div>
-      <div><div class="date">${fechaLarga(now)}</div><div class="shift">${esc(title)}</div><div class="hours">${esc(hoursTxt)}</div>
+      <div><div class="kick">${esc(kick)}</div><div class="head">${esc(head)}</div><div class="hours">${esc(sub)}</div>
       ${tags.length ? '<div class="tags">' + tags.join('') + '</div>' : ''}</div>
-      <div class="foot">${when ? '<div class="when">' + esc(when) + '</div>' : '<span></span>'}<button class="edit" data-edit="${f}">Editar</button></div></div>`;
+      <div class="foot">${when ? '<div class="when">' + esc(when) + '</div>' : '<span></span>'}<button class="edit" data-edit="${fd}">Editar</button></div></div>`;
 
     // tira
     const strip = $('#strip'); strip.innerHTML = '';
@@ -255,7 +281,6 @@
     const nFb = nextOf((c, dd) => !!dd.fb, hm < (cfg().fibao_fin || '14:00') ? 0 : 1);
     const wk0 = addDays(now, -((now.getDay() + 6) % 7));
     let wkH = 0; for (let i = 0; i < 7; i++) { const ff = iso(addDays(wk0, i)); wkH += hoursOf(real(day(ff)), ff); }
-    const dayN = (dt) => Math.round((new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5);
     const inDays = (dt, hoy = 'hoy') => { const n = dayN(dt); return n === 0 ? hoy : n === 1 ? 'mañana' : 'en ' + n + ' días'; };
     const diaCorto = (dt) => dayN(dt) === 0 ? 'Hoy' : cap(DIAS[dt.getDay()]) + ' ' + dt.getDate();
     const fact = (k, v, s, cls = '') => `<div class="fact${cls ? ' ' + cls : ''}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s || ''}</div></div>`;
@@ -1196,7 +1221,7 @@
 
   /* ───────── Ajustes ───────── */
   // debe coincidir con VERSION de sw.js (turnos-vNN)
-  const APP_VERSION = '27';
+  const APP_VERSION = '28';
   function renderAj() {
     const c = cfg();
     const f = (k, label, ph, type = 'text') => `<label class="field"><span>${label}</span><input data-cfg="${k}" value="${esc(c[k] || '')}" placeholder="${ph}" inputmode="${type === 'num' ? 'decimal' : 'text'}"></label>`;
